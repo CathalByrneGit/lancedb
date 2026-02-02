@@ -2,7 +2,7 @@
 % Please edit documentation in R/aaa.R
 \name{.onLoad}
 \alias{.onLoad}
-\title{Package load hook for lancedbr}
+\title{Package load hook for}
 \usage{
 .onLoad(libname, pkgname)
 }

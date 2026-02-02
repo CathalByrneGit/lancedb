@@ -15,8 +15,8 @@ reticulate and ensures the Python package 'lancedb' is installed.
 }
 \details{
 Strategy:
-1. If LANCEDBR_PYTHON is set, use that interpreter.
-2. Else if LANCEDBR_CONDA_ENV is set (or default), use that conda env.
+1. If LANCEDB_PYTHON is set, use that interpreter.
+2. Else if LANCEDB_CONDA_ENV is set (or default), use that conda env.
 3. Else fall back to reticulate-managed Python (py_require / uv).
 }
 \keyword{internal}

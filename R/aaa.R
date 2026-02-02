@@ -1,4 +1,4 @@
-#' Package load hook for lancedbr
+#' Package load hook for
 #'
 #' Internal initialization hook called when the package is loaded.
 #' No heavy work (such as initializing Python or installing dependencies)
@@ -13,16 +13,16 @@
 }
 
 
-#' Read lancedbr configuration
+#' Read  configuration
 #'
-#' Retrieves configuration settings for \pkg{lancedbr}, primarily
+#' Retrieves configuration settings for \pkg{}, primarily
 #' controlling how the Python environment is selected when using
 #' the \code{"reticulate"} backend.
 #'
 #' Power users can override defaults using environment variables:
 #' \itemize{
-#'   \item \code{LANCEDBR_PYTHON}: Path to a specific Python executable
-#'   \item \code{LANCEDBR_CONDA_ENV}: Name of a conda environment to use
+#'   \item \code{LANCEDB_PYTHON}: Path to a specific Python executable
+#'   \item \code{LANCEDB_CONDA_ENV}: Name of a conda environment to use
 #' }
 #'
 #' @return A named list with elements:
@@ -33,12 +33,12 @@
 #' }
 #'
 #' @examples
-#' lancedbr_config()
+#' lancedb_config()
 #'
 #' @export
-lancedbr_config <- function() {
+lancedb_config <- function() {
   list(
-    python = Sys.getenv("LANCEDBR_PYTHON", unset = NA_character_),
-    conda_env = Sys.getenv("LANCEDBR_CONDA_ENV", unset = NA_character_)
+    python = Sys.getenv("LANCEDB_PYTHON", unset = NA_character_),
+    conda_env = Sys.getenv("LANCEDB_CONDA_ENV", unset = NA_character_)
   )
 }

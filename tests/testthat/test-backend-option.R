@@ -1,15 +1,15 @@
-test_that("lancedbr_backend() defaults to reticulate", {
-  old <- getOption("lancedbr.backend")
-  on.exit(options(lancedbr.backend = old), add = TRUE)
+test_that("lancedb_backend() defaults to reticulate", {
+  old <- getOption("lancedb.backend")
+  on.exit(options(lancedb.backend = old), add = TRUE)
 
-  options(lancedbr.backend = NULL)
-  expect_identical(lancedbr_backend(), "reticulate")
+  options(lancedb.backend = NULL)
+  expect_identical(lancedb_backend(), "reticulate")
 })
 
-test_that("lancedbr_backend() errors on unknown backend", {
-  old <- getOption("lancedbr.backend")
-  on.exit(options(lancedbr.backend = old), add = TRUE)
+test_that("lancedb_backend() errors on unknown backend", {
+  old <- getOption("lancedb.backend")
+  on.exit(options(lancedb.backend = old), add = TRUE)
 
-  options(lancedbr.backend = "nope")
-  expect_error(lancedbr_backend(), "Unknown backend")
+  options(lancedb.backend = "nope")
+  expect_error(lancedb_backend(), "Unknown backend")
 })

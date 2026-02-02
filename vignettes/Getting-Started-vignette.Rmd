@@ -1,8 +1,8 @@
 ---
-title: "Getting Started with lancedbr"
+title: "Getting Started with lancedb"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Getting Started with lancedbr}
+  %\VignetteIndexEntry{Getting Started with lancedb}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -16,7 +16,7 @@ knitr::opts_chunk$set(
 
 ## Overview
 
-`lancedbr` provides an R interface to LanceDB, a vector database built on
+`lancedb` provides an R interface to LanceDB, a vector database built on
 Apache Arrow. It allows you to create tables, add data, and perform
 vector similarity search using a simple, backend-agnostic R API.
 
@@ -26,11 +26,11 @@ the backend evolves.
 
 ## Installation
 
-At the moment, `lancedbr` is installed from source:
+At the moment, `lancedb` is installed from source:
 
 ```r
 # install.packages("devtools")
-devtools::install_github("your-org/lancedbr")
+devtools::install_github("your-org/lancedb")
 ```
 
 The first time you use the package, a Python environment may be created
@@ -41,7 +41,7 @@ automatically and the Python `lancedb` package installed.
 A LanceDB database is typically stored in a local directory.
 
 ```{r}
-library(lancedbr)
+library(lancedb)
 
 con <- lancedb_connect("~/mydb")
 con
@@ -74,7 +74,7 @@ tbl
 The vector column must be provided as a **list-column of numeric vectors
 with a fixed length per row**. All vectors must have the same dimension.
 
-When a table is created from an R `data.frame`, `lancedbr` ingests the
+When a table is created from an R `data.frame`, `lancedb` ingests the
 vector column using Apache Arrow with a fixed-size list type. This is
 required for vector indexing and similarity search in LanceDB and is
 handled automatically by the package.
@@ -130,17 +130,17 @@ data, even if results are returned as data frames.
 
 ## Python configuration
 
-By default, `lancedbr` manages its own Python environment using
+By default, `lancedb` manages its own Python environment using
 `reticulate`. Advanced users can override this behavior with environment
 variables:
 
-* `LANCEDBR_PYTHON`: path to a specific Python executable
-* `LANCEDBR_CONDA_ENV`: name of a conda environment to use
+* `LANCEDB_PYTHON`: path to a specific Python executable
+* `LANCEDB_CONDA_ENV`: name of a conda environment to use
 
 Example:
 
 ```r
-Sys.setenv(LANCEDBR_CONDA_ENV = "myenv")
+Sys.setenv(LANCEDB_CONDA_ENV = "myenv")
 ```
 
 These variables should be set **before** loading the package.
@@ -151,14 +151,14 @@ To inspect the active backend, Python configuration, and installed
 Python package versions, use:
 
 ```{r}
-lancedbr_info()
+lancedb_info()
 ```
 
 This information is useful when debugging or reporting issues.
 
 ## Backend architecture
 
-All user-facing functions in `lancedbr` dispatch to an internal backend
+All user-facing functions in `lancedb` dispatch to an internal backend
 layer. The current backend uses `reticulate`, but the API is designed so
 that a future native Rust backend can be introduced without changing
 user code.

@@ -7,6 +7,6 @@
 # * https://testthat.r-lib.org/articles/special-files.html
 
 library(testthat)
-library(lancedbr)
+library(lancedb)
 
-test_check("lancedbr")
+test_check("lancedb")

@@ -43,7 +43,7 @@ def get_version_one(p):
 
 #' Report LanceDB R and Python environment information
 #'
-#' Collects diagnostic information about the current \pkg{lancedbr}
+#' Collects diagnostic information about the current \pkg{lancedb}
 #' setup, including:
 #'
 #' \itemize{
@@ -58,16 +58,16 @@ def get_version_one(p):
 #'
 #' @param pkgs Character vector of Python packages to report versions for.
 #'
-#' @return An object of class \code{"lancedbr_info"}.
+#' @return An object of class \code{"lancedb_info"}.
 #'
 #' @examples
 #' \dontrun{
-#' lancedbr_info()
+#' lancedb_info()
 #' }
 #'
 #' @export
-lancedbr_info <- function(pkgs = c("lancedb", "pyarrow", "numpy", "pandas")) {
-  backend <- lancedbr_backend()
+lancedb_info <- function(pkgs = c("lancedb", "pyarrow", "numpy", "pandas")) {
+  backend <- lancedb_backend()
 
   # Avoid forcing python init if user just wants backend
   cfg <- tryCatch(reticulate::py_config(error = FALSE), error = function(e) NULL)
@@ -84,30 +84,30 @@ lancedbr_info <- function(pkgs = c("lancedb", "pyarrow", "numpy", "pandas")) {
     python = cfg,
     python_packages = versions,
     options = list(
-      lancedbr.backend = getOption("lancedbr.backend"),
-      lancedbr.conda_env = Sys.getenv("LANCEDBR_CONDA_ENV", unset = NA_character_),
-      lancedbr.python = Sys.getenv("LANCEDBR_PYTHON", unset = NA_character_)
+      lancedb.backend = getOption("lancedb.backend"),
+      lancedb.conda_env = Sys.getenv("LANCEDB_CONDA_ENV", unset = NA_character_),
+      lancedb.python = Sys.getenv("LANCEDB_PYTHON", unset = NA_character_)
     )
   )
 
-  class(info) <- "lancedbr_info"
+  class(info) <- "lancedb_info"
   info
 }
 
 
-#' Print method for lancedbr_info objects
+#' Print method for lancedb_info objects
 #'
 #' Nicely formats and prints information returned by
-#' \code{lancedbr_info()}.
+#' \code{lancedb_info()}.
 #'
-#' @param x A \code{lancedbr_info} object.
+#' @param x A \code{lancedb_info} object.
 #' @param ... Unused.
 #'
 #' @return Invisibly returns \code{x}.
 #'
 #' @keywords internal
-print.lancedbr_info <- function(x, ...) {
-  cat("lancedbr info\n")
+print.lancedb_info <- function(x, ...) {
+  cat("lancedb info\n")
   cat("- date: ", x$date, "\n", sep = "")
   cat("- backend: ", x$backend, "\n", sep = "")
   cat("- R: ", x$r$version, " (", x$r$platform, ")\n", sep = "")

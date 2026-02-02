@@ -1,6 +1,6 @@
-# lancedbr
+# lancedb
 
-`lancedbr` provides an R interface to [LanceDB](https://lancedb.com), a
+`lancedb` provides an R interface to [LanceDB](https://lancedb.com), a
 vector database built on Apache Arrow.
 
 The package exposes a small, stable R API for creating tables, adding
@@ -20,7 +20,7 @@ From source (for now):
 
 ```r
 # install.packages("devtools")
-devtools::install_github("your-org/lancedbr")
+devtools::install_github("your-org/lancedb")
 ```
 
 The first time you use the package, a Python environment may be created
@@ -29,7 +29,7 @@ automatically and the Python `lancedb` package installed.
 ## Basic usage
 
 ```r
-library(lancedbr)
+library(lancedb)
 
 # Connect to a database (local directory)
 con <- lancedb_connect("~/mydb")
@@ -67,7 +67,7 @@ fixed length per row**. This is required for vector indexing and search
 in LanceDB.
 
 When a table is created or data are added from an R `data.frame`,
-`lancedbr` ingests vector columns using Apache Arrow with a fixed-size
+`lancedb` ingests vector columns using Apache Arrow with a fixed-size
 list type. This conversion happens automatically; users do not need to
 construct Arrow objects themselves.
 
@@ -93,17 +93,17 @@ even if results are returned as data frames.
 
 ## Python configuration
 
-By default, `lancedbr` manages its own Python environment using
+By default, `lancedb` manages its own Python environment using
 `reticulate`. Advanced users can override this behavior via environment
 variables:
 
-* `LANCEDBR_PYTHON`: path to a specific Python executable
-* `LANCEDBR_CONDA_ENV`: name of a conda environment to use
+* `LANCEDB_PYTHON`: path to a specific Python executable
+* `LANCEDB_CONDA_ENV`: name of a conda environment to use
 
 Example:
 
 ```r
-Sys.setenv(LANCEDBR_CONDA_ENV = "myenv")
+Sys.setenv(LANCEDB_CONDA_ENV = "myenv")
 ```
 
 These variables should be set **before** loading the package.
@@ -114,7 +114,7 @@ To inspect the active backend, Python configuration, and installed
 Python package versions:
 
 ```r
-lancedbr_info()
+lancedb_info()
 ```
 
 This is useful when reporting issues.

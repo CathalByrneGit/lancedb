@@ -4,14 +4,14 @@
 #' reticulate and ensures the Python package 'lancedb' is installed.
 #'
 #' Strategy:
-#' 1. If LANCEDBR_PYTHON is set, use that interpreter.
-#' 2. Else if LANCEDBR_CONDA_ENV is set (or default), use that conda env.
+#' 1. If LANCEDB_PYTHON is set, use that interpreter.
+#' 2. Else if LANCEDB_CONDA_ENV is set (or default), use that conda env.
 #' 3. Else fall back to reticulate-managed Python (py_require / uv).
 #'
 #' @return Invisibly returns TRUE on success.
 #' @keywords internal
 .ensure_python <- function() {
-  cfg <- lancedbr_config()
+  cfg <- lancedb_config()
 
   # 1) Explicit python path override
   if (!is.na(cfg$python) && nzchar(cfg$python)) {
@@ -85,8 +85,8 @@
 #' Get the active LanceDB backend
 #'
 #' Returns the currently selected backend implementation used by
-#' \pkg{lancedbr}. The backend is controlled via the global option
-#' \code{lancedbr.backend}.
+#' \pkg{lancedb}. The backend is controlled via the global option
+#' \code{lancedb.backend}.
 #'
 #' Currently supported values are:
 #' \itemize{
@@ -97,18 +97,18 @@
 #' @return A length-one character string naming the active backend.
 #'
 #' @examples
-#' lancedbr_backend()
-#' options(lancedbr.backend = "reticulate")
+#' lancedb_backend()
+#' options(lancedb.backend = "reticulate")
 #'
 #' @export
-lancedbr_backend <- function() {
-  backend <- getOption("lancedbr.backend", default = "reticulate")
+lancedb_backend <- function() {
+  backend <- getOption("lancedb.backend", default = "reticulate")
   backend <- tolower(as.character(backend))
 
   if (!backend %in% c("reticulate", "extendr")) {
     stop(
       "Unknown backend: ", backend,
-      ". Use options(lancedbr.backend = 'reticulate')",
+      ". Use options(lancedb.backend = 'reticulate')",
       call. = FALSE
     )
   }
@@ -119,7 +119,7 @@ lancedbr_backend <- function() {
 #' Dispatch a backend-specific implementation
 #'
 #' Internal dispatcher that routes a function call to the active backend
-#' implementation based on \code{lancedbr_backend()}.
+#' implementation based on \code{lancedb_backend()}.
 #'
 #' Backend-specific functions must follow the naming convention:
 #' \itemize{
@@ -138,7 +138,7 @@ lancedbr_backend <- function() {
 #'
 #' @keywords internal
 .backend_call <- function(fn, ...) {
-  backend <- lancedbr_backend()
+  backend <- lancedb_backend()
   impl <- switch(
     backend,
     reticulate = get0(paste0(".rt_", fn), mode = "function"),

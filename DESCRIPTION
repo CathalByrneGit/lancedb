@@ -1,4 +1,4 @@
-Package: lancedbr
+Package: lancedb
 Type: Package
 Title: LanceDB Client for R
 Version: 0.1.0

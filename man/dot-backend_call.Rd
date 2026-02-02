@@ -17,7 +17,7 @@ The return value of the backend-specific function.
 }
 \description{
 Internal dispatcher that routes a function call to the active backend
-implementation based on \code{lancedbr_backend()}.
+implementation based on \code{lancedb_backend()}.
 }
 \details{
 Backend-specific functions must follow the naming convention:
