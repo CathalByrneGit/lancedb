@@ -1,0 +1,177 @@
+---
+title: "Getting Started with lancedbr"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Getting Started with lancedbr}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+## Overview
+
+`lancedbr` provides an R interface to LanceDB, a vector database built on
+Apache Arrow. It allows you to create tables, add data, and perform
+vector similarity search using a simple, backend-agnostic R API.
+
+The current implementation uses the Python LanceDB client via the
+`reticulate` package. The public R API is designed to remain stable as
+the backend evolves.
+
+## Installation
+
+At the moment, `lancedbr` is installed from source:
+
+```r
+# install.packages("devtools")
+devtools::install_github("your-org/lancedbr")
+```
+
+The first time you use the package, a Python environment may be created
+automatically and the Python `lancedb` package installed.
+
+## Connecting to a database
+
+A LanceDB database is typically stored in a local directory.
+
+```{r}
+library(lancedbr)
+
+con <- lancedb_connect("~/mydb")
+con
+```
+
+This creates (or opens) a database at the given path.
+
+## Creating a table
+
+Tables are created from R data. A common pattern is to store an ID,
+metadata columns, and a vector column containing numeric embeddings.
+
+```{r}
+data <- data.frame(
+  id = 1:3,
+  text = c("a", "b", "c"),
+  vector = I(list(
+    c(0.1, 0.2),
+    c(0.2, 0.3),
+    c(0.4, 0.5)
+  ))
+)
+
+tbl <- lancedb_create_table(con, "example", data)
+tbl
+```
+
+### Vector column requirements
+
+The vector column must be provided as a **list-column of numeric vectors
+with a fixed length per row**. All vectors must have the same dimension.
+
+When a table is created from an R `data.frame`, `lancedbr` ingests the
+vector column using Apache Arrow with a fixed-size list type. This is
+required for vector indexing and similarity search in LanceDB and is
+handled automatically by the package.
+
+## Adding data
+
+You can append additional rows to an existing table:
+
+```{r}
+tbl_add(tbl, data)
+```
+
+The same vector column requirements apply when adding data: vectors must
+be numeric and have a consistent length.
+
+## Vector search
+
+Perform a similarity search by providing a numeric query vector:
+
+```{r}
+res <- tbl_search(
+  tbl,
+  query = c(0.1, 0.2),
+  k = 2
+)
+
+res
+```
+
+By default, results are returned as a data frame.
+
+## Returning Arrow results
+
+For larger result sets, you may prefer Arrow output. If the `arrow`
+package is installed, set `as = "arrow"`:
+
+```{r, eval = requireNamespace("arrow", quietly = TRUE)}
+res_arrow <- tbl_search(
+  tbl,
+  query = c(0.1, 0.2),
+  k = 2,
+  as = "arrow"
+)
+
+res_arrow
+```
+
+Arrow output avoids unnecessary data copies and is recommended for
+performance-sensitive workflows.
+
+Note that Apache Arrow is also used internally when ingesting vector
+data, even if results are returned as data frames.
+
+## Python configuration
+
+By default, `lancedbr` manages its own Python environment using
+`reticulate`. Advanced users can override this behavior with environment
+variables:
+
+* `LANCEDBR_PYTHON`: path to a specific Python executable
+* `LANCEDBR_CONDA_ENV`: name of a conda environment to use
+
+Example:
+
+```r
+Sys.setenv(LANCEDBR_CONDA_ENV = "myenv")
+```
+
+These variables should be set **before** loading the package.
+
+## Diagnostics
+
+To inspect the active backend, Python configuration, and installed
+Python package versions, use:
+
+```{r}
+lancedbr_info()
+```
+
+This information is useful when debugging or reporting issues.
+
+## Backend architecture
+
+All user-facing functions in `lancedbr` dispatch to an internal backend
+layer. The current backend uses `reticulate`, but the API is designed so
+that a future native Rust backend can be introduced without changing
+user code.
+
+## Summary
+
+This vignette demonstrated how to:
+
+* connect to a LanceDB database
+* create and populate a table with vector data
+* perform vector similarity search
+* retrieve results as data frames or Arrow tables
+
+For more advanced usage, see the package documentation and source
+repository.
+

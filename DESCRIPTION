@@ -1,0 +1,31 @@
+Package: lancedbr
+Type: Package
+Title: LanceDB Client for R
+Version: 0.1.0
+Authors@R: c(
+    person(
+      "Cathal", "Byrne",
+      email = "cathal470@gmail.com",
+      role = c("aut", "cre")
+    )
+  )
+Description: Provides an R interface to LanceDB, a vector database
+    built on Apache Arrow. The package offers a backend-agnostic API
+    for creating tables, adding data, and performing vector similarity
+    search. The initial implementation uses the Python LanceDB client
+    via the 'reticulate' package, with a design intended to support a
+    future native Rust backend.
+License: Apache License (>= 2.0)
+Encoding: UTF-8
+LazyData: true
+Imports:
+    reticulate
+Suggests:
+    arrow,
+    testthat (>= 3.0.0),
+    withr,
+    knitr,
+    rmarkdown
+Config/testthat/edition: 3
+RoxygenNote: 7.3.3
+VignetteBuilder: knitr
