@@ -34,6 +34,14 @@ rust_table_names <- function(conn) {
   .Call("wrap__rust_table_names", conn)
 }
 
+#' Drop a table from the database (Rust binding)
+#' @param conn External pointer to LanceConnection.
+#' @param name Character. Table name.
+#' @noRd
+rust_drop_table <- function(conn, name) {
+  invisible(.Call("wrap__rust_drop_table", conn, name))
+}
+
 #' Open a table (Rust binding)
 #' @param conn External pointer to LanceConnection.
 #' @param name Character. Table name.
@@ -94,6 +102,137 @@ rust_add_data <- function(table, ipc_bytes, mode) {
 #' @noRd
 rust_delete_rows <- function(table, predicate) {
   invisible(.Call("wrap__rust_delete_rows", table, predicate))
+}
+
+#' Update rows in table (Rust binding)
+#' @param table External pointer to LanceTable.
+#' @param where_clause Character. SQL WHERE clause (empty for all rows).
+#' @param columns_json Character. JSON object of column -> expression.
+#' @noRd
+rust_update_rows <- function(table, where_clause, columns_json) {
+  invisible(.Call("wrap__rust_update_rows", table, where_clause, columns_json))
+}
+
+#' Merge insert (upsert) data (Rust binding)
+#' @param table External pointer to LanceTable.
+#' @param on_columns Character vector. Join key columns.
+#' @param ipc_bytes Raw. Arrow IPC stream bytes.
+#' @param when_matched_update_all Logical.
+#' @param when_not_matched_insert_all Logical.
+#' @param when_not_matched_by_source_delete Logical.
+#' @noRd
+rust_merge_insert <- function(table, on_columns, ipc_bytes,
+                               when_matched_update_all,
+                               when_not_matched_insert_all,
+                               when_not_matched_by_source_delete) {
+  invisible(.Call("wrap__rust_merge_insert", table, on_columns, ipc_bytes,
+                  when_matched_update_all, when_not_matched_insert_all,
+                  when_not_matched_by_source_delete))
+}
+
+#' Create an index (Rust binding)
+#' @param table External pointer to LanceTable.
+#' @param columns Character vector. Column names to index.
+#' @param index_type Character. Index type string.
+#' @param replace Logical. Replace existing index.
+#' @param metric Character. Distance metric.
+#' @noRd
+rust_create_index <- function(table, columns, index_type, replace, metric) {
+  invisible(.Call("wrap__rust_create_index", table, columns, index_type, replace, metric))
+}
+
+#' List indices (Rust binding)
+#' @param table External pointer to LanceTable.
+#' @return Character string (JSON).
+#' @noRd
+rust_list_indices <- function(table) {
+  .Call("wrap__rust_list_indices", table)
+}
+
+#' Drop an index (Rust binding)
+#' @param table External pointer to LanceTable.
+#' @param name Character. Index name.
+#' @noRd
+rust_drop_index <- function(table, name) {
+  invisible(.Call("wrap__rust_drop_index", table, name))
+}
+
+#' Add columns via SQL expressions (Rust binding)
+#' @param table External pointer to LanceTable.
+#' @param transforms_json Character. JSON object of name -> expression.
+#' @noRd
+rust_add_columns <- function(table, transforms_json) {
+  invisible(.Call("wrap__rust_add_columns", table, transforms_json))
+}
+
+#' Alter columns (Rust binding)
+#' @param table External pointer to LanceTable.
+#' @param alterations_json Character. JSON array of alteration objects.
+#' @noRd
+rust_alter_columns <- function(table, alterations_json) {
+  invisible(.Call("wrap__rust_alter_columns", table, alterations_json))
+}
+
+#' Drop columns (Rust binding)
+#' @param table External pointer to LanceTable.
+#' @param columns Character vector. Column names to drop.
+#' @noRd
+rust_drop_columns <- function(table, columns) {
+  invisible(.Call("wrap__rust_drop_columns", table, columns))
+}
+
+#' Get table version (Rust binding)
+#' @param table External pointer to LanceTable.
+#' @return Integer version number.
+#' @noRd
+rust_table_version <- function(table) {
+  .Call("wrap__rust_table_version", table)
+}
+
+#' List table versions (Rust binding)
+#' @param table External pointer to LanceTable.
+#' @return Character string (JSON).
+#' @noRd
+rust_list_versions <- function(table) {
+  .Call("wrap__rust_list_versions", table)
+}
+
+#' Checkout a specific version (Rust binding)
+#' @param table External pointer to LanceTable.
+#' @param version Integer. Version number.
+#' @noRd
+rust_checkout <- function(table, version) {
+  invisible(.Call("wrap__rust_checkout", table, version))
+}
+
+#' Checkout latest version (Rust binding)
+#' @param table External pointer to LanceTable.
+#' @noRd
+rust_checkout_latest <- function(table) {
+  invisible(.Call("wrap__rust_checkout_latest", table))
+}
+
+#' Restore checked-out version (Rust binding)
+#' @param table External pointer to LanceTable.
+#' @noRd
+rust_restore <- function(table) {
+  invisible(.Call("wrap__rust_restore", table))
+}
+
+#' Compact files (Rust binding)
+#' @param table External pointer to LanceTable.
+#' @return Character string with stats.
+#' @noRd
+rust_compact_files <- function(table) {
+  .Call("wrap__rust_compact_files", table)
+}
+
+#' Cleanup old versions (Rust binding)
+#' @param table External pointer to LanceTable.
+#' @param older_than_days Integer. Days threshold.
+#' @noRd
+rust_cleanup_old_versions <- function(table, older_than_days) {
+  invisible(.Call("wrap__rust_cleanup_old_versions", table, older_than_days))
 }
 
 #' Execute a query plan (Rust binding)

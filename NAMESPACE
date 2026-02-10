@@ -8,10 +8,42 @@ export(lancedb_search)
 export(lancedb_scan)
 export(show_query)
 
+# Connection operations
+export(lancedb_list_tables)
+export(lancedb_drop_table)
+
 # Table operations
 export(lancedb_count_rows)
+export(lancedb_schema)
+export(lancedb_version)
+export(lancedb_head)
+export(lancedb_to_arrow)
+
+# Data modification
 export(lancedb_add)
 export(lancedb_delete)
+export(lancedb_update)
+export(lancedb_merge_insert)
+
+# Indexing
+export(lancedb_create_index)
+export(lancedb_list_indices)
+export(lancedb_drop_index)
+
+# Schema evolution
+export(lancedb_add_columns)
+export(lancedb_alter_columns)
+export(lancedb_drop_columns)
+
+# Versioning
+export(lancedb_list_versions)
+export(lancedb_checkout)
+export(lancedb_checkout_latest)
+export(lancedb_restore)
+
+# Optimization
+export(lancedb_compact_files)
+export(lancedb_cleanup_old_versions)
 
 # S3 methods for dplyr generics
 S3method(dplyr::filter, lancedb_lazy)

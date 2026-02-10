@@ -30,6 +30,49 @@ lancedb_connect <- function(uri) {
   )
 }
 
+#' List Tables in a Database
+#'
+#' Returns the names of all tables in the connected database.
+#'
+#' @param con A `lancedb_connection` object.
+#'
+#' @return A character vector of table names.
+#'
+#' @examples
+#' \dontrun{
+#' con <- lancedb_connect("/tmp/my_lancedb")
+#' lancedb_list_tables(con)
+#' }
+#'
+#' @export
+lancedb_list_tables <- function(con) {
+  stopifnot(inherits(con, "lancedb_connection"))
+  rust_table_names(con$ptr)
+}
+
+#' Drop a Table from the Database
+#'
+#' Permanently removes a table and its data from the database.
+#'
+#' @param con A `lancedb_connection` object.
+#' @param name Character string. Name of the table to drop.
+#'
+#' @return The connection (invisibly).
+#'
+#' @examples
+#' \dontrun{
+#' con <- lancedb_connect("/tmp/my_lancedb")
+#' lancedb_drop_table(con, "old_table")
+#' }
+#'
+#' @export
+lancedb_drop_table <- function(con, name) {
+  stopifnot(inherits(con, "lancedb_connection"))
+  stopifnot(is.character(name), length(name) == 1)
+  rust_drop_table(con$ptr, name)
+  invisible(con)
+}
+
 #' Print a LanceDB Connection
 #' @param x A `lancedb_connection` object.
 #' @param ... Ignored.

@@ -62,16 +62,66 @@ results <- lancedb_search(tbl, query_vec) %>%
 | Function | Description |
 |---|---|
 | `lancedb_connect(uri)` | Connect to a LanceDB database (local path or cloud URI) |
+| `lancedb_list_tables(con)` | List all table names in the database |
+| `lancedb_drop_table(con, name)` | Permanently drop a table from the database |
 
-### Table Operations
+### Table Creation & Opening
 
 | Function | Description |
 |---|---|
 | `lancedb_create_table(con, name, data, mode)` | Create a new table from a data.frame or Arrow Table |
 | `lancedb_open_table(con, name)` | Open an existing table |
+
+### Table Info
+
+| Function | Description |
+|---|---|
 | `lancedb_count_rows(table, filter)` | Count rows (optionally with a filter) |
-| `lancedb_add(table, data, mode)` | Add data to an existing table |
-| `lancedb_delete(table, predicate)` | Delete rows matching a predicate |
+| `lancedb_schema(table)` | Get table schema as a data.frame (name, type, nullable) |
+| `lancedb_version(table)` | Get current table version number |
+| `lancedb_head(table, n)` | Preview first n rows as a data.frame |
+| `lancedb_to_arrow(table)` | Read entire table as an Arrow Table |
+
+### Data Modification
+
+| Function | Description |
+|---|---|
+| `lancedb_add(table, data, mode)` | Add (append/overwrite) data to an existing table |
+| `lancedb_delete(table, predicate)` | Delete rows matching a SQL predicate |
+| `lancedb_update(table, values, where)` | Update column values using SQL expressions |
+| `lancedb_merge_insert(table, data, on, ...)` | Upsert / insert-if-not-exists / replace-range |
+
+### Indexing
+
+| Function | Description |
+|---|---|
+| `lancedb_create_index(table, columns, index_type, ...)` | Create scalar, vector, or FTS index |
+| `lancedb_list_indices(table)` | List all indices on a table |
+| `lancedb_drop_index(table, name)` | Drop an index by name |
+
+### Schema Evolution
+
+| Function | Description |
+|---|---|
+| `lancedb_add_columns(table, transforms)` | Add new computed columns via SQL expressions |
+| `lancedb_alter_columns(table, alterations)` | Rename columns or change nullability |
+| `lancedb_drop_columns(table, columns)` | Permanently remove columns |
+
+### Versioning (Time Travel)
+
+| Function | Description |
+|---|---|
+| `lancedb_list_versions(table)` | List all versions with timestamps |
+| `lancedb_checkout(table, version)` | Checkout a specific past version (read-only) |
+| `lancedb_checkout_latest(table)` | Return to the latest version |
+| `lancedb_restore(table)` | Restore the checked-out version as a new version |
+
+### Optimization
+
+| Function | Description |
+|---|---|
+| `lancedb_compact_files(table)` | Merge small files for better read performance |
+| `lancedb_cleanup_old_versions(table, older_than_days)` | Prune old versions |
 
 ### Query Constructors
 
@@ -97,6 +147,91 @@ results <- lancedb_search(tbl, query_vec) %>%
 | Function | Description |
 |---|---|
 | `show_query(x)` | Display the query plan |
+
+## Examples
+
+### Update Rows
+
+```r
+# Set all scores to 0
+lancedb_update(tbl, values = list(score = "0"))
+
+# Update matching rows with a computed value
+lancedb_update(tbl, values = list(score = "score * 2"), where = "category = 'A'")
+```
+
+### Upsert (Merge Insert)
+
+```r
+new_data <- data.frame(id = c(1, 999), name = c("updated", "new_item"))
+
+# Upsert: update existing, insert new
+lancedb_merge_insert(tbl, new_data, on = "id")
+
+# Insert only if not exists
+lancedb_merge_insert(tbl, new_data, on = "id", when_matched_update_all = FALSE)
+```
+
+### Indexing
+
+```r
+# Scalar index for fast filtering
+lancedb_create_index(tbl, "category", index_type = "btree")
+
+# Vector index for fast ANN search
+lancedb_create_index(tbl, "vec", index_type = "ivf_pq", metric = "cosine")
+
+# Full-text search index
+lancedb_create_index(tbl, "text", index_type = "fts")
+
+# List and drop indices
+lancedb_list_indices(tbl)
+lancedb_drop_index(tbl, "my_index")
+```
+
+### Schema Evolution
+
+```r
+# Add a computed column
+lancedb_add_columns(tbl, list(score_doubled = "score * 2"))
+
+# Rename a column
+lancedb_alter_columns(tbl, list(list(path = "old_name", rename = "new_name")))
+
+# Drop columns
+lancedb_drop_columns(tbl, c("temp_col", "debug_info"))
+```
+
+### Versioning (Time Travel)
+
+```r
+# Check current version
+lancedb_version(tbl)
+
+# List version history
+lancedb_list_versions(tbl)
+
+# Travel back in time
+lancedb_checkout(tbl, version = 1)
+old_data <- lancedb_head(tbl)
+
+# Return to latest
+lancedb_checkout_latest(tbl)
+
+# Or restore old version as new current version
+lancedb_checkout(tbl, version = 1)
+lancedb_restore(tbl)
+```
+
+### Table Optimization
+
+```r
+# Compact small files after many appends
+lancedb_compact_files(tbl)
+
+# Remove old versions older than 30 days
+lancedb_cleanup_old_versions(tbl, older_than_days = 30)
+```
 
 ## Filter Expressions
 
@@ -127,7 +262,7 @@ lancedb_scan(tbl) %>% filter("age > 30 AND name = 'Alice'")
 
 ## Python Comparison
 
-The R API mirrors the Python LanceDB query builder:
+The R API mirrors the Python LanceDB SDK:
 
 **Python:**
 ```python
