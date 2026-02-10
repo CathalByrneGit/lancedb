@@ -87,7 +87,7 @@ results <- lancedb_search(tbl, query_vec) %>%
 | `filter(.data, ...)` | Add a WHERE clause (R expressions or strings) |
 | `select(.data, ...)` | Choose columns to return |
 | `slice_head(.data, n)` | Limit number of results |
-| `arrange(.data, ...)` | Order results (backend-dependent) |
+| `arrange(.data, ...)` | Not yet supported (errors with guidance) |
 | `collect(x, as)` | Execute the query and return results |
 | `pull(.data, var)` | Execute and extract a single column |
 | `head(x, n)` | Alias for `slice_head(n = ...)` |

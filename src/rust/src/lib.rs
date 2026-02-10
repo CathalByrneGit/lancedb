@@ -1,6 +1,9 @@
 use arrow_ipc::writer::StreamWriter;
 use extendr_api::prelude::*;
 use futures::TryStreamExt;
+
+// ExecutableQuery and QueryBase are required as trait bounds for
+// .execute(), .only_if(), .limit(), and .select() on query builders.
 use lancedb::query::{ExecutableQuery, QueryBase, Select};
 
 mod runtime;
@@ -234,8 +237,12 @@ fn rust_execute_query(
                             let n = op["n"].as_u64().unwrap() as usize;
                             builder = builder.limit(n);
                         }
-                        _ => {
-                            // Unsupported op — skip with warning
+                        other => {
+                            panic!(
+                                "Unsupported operation '{}' for vector search mode. \
+                                 Supported ops: where, select, limit.",
+                                other
+                            );
                         }
                     }
                 }
@@ -269,8 +276,12 @@ fn rust_execute_query(
                             let n = op["n"].as_u64().unwrap() as usize;
                             builder = builder.limit(n);
                         }
-                        _ => {
-                            // Unsupported op — skip
+                        other => {
+                            panic!(
+                                "Unsupported operation '{}' for scan mode. \
+                                 Supported ops: where, select, limit.",
+                                other
+                            );
                         }
                     }
                 }

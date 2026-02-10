@@ -118,7 +118,6 @@ print.lancedb_lazy <- function(x, ...) {
         "where" = paste0("filter: ", op$expr),
         "select" = paste0("select: ", paste(op$cols, collapse = ", ")),
         "limit" = paste0("limit: ", op$n),
-        "order_by" = paste0("arrange: ", paste(op$cols, collapse = ", ")),
         paste0(op$op, ": ...")
       )
       cat("    ", i, ". ", desc, "\n", sep = "")
@@ -167,15 +166,7 @@ show_query <- function(x) {
       switch(op$op,
         "where" = cat("  WHERE", op$expr, "\n"),
         "select" = cat("  SELECT", paste(op$cols, collapse = ", "), "\n"),
-        "limit" = cat("  LIMIT", op$n, "\n"),
-        "order_by" = {
-          cols_str <- paste0(
-            op$cols,
-            ifelse(op$desc, " DESC", " ASC"),
-            collapse = ", "
-          )
-          cat("  ORDER BY", cols_str, "\n")
-        }
+        "limit" = cat("  LIMIT", op$n, "\n")
       )
     }
   }

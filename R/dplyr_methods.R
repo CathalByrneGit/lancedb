@@ -150,37 +150,15 @@ head.lancedb_lazy <- function(x, n = 6L, ...) {
 #' lancedb_scan(tbl) %>% arrange(age, desc(name))
 #' }
 arrange.lancedb_lazy <- function(.data, ...) {
-  dots <- rlang::exprs(...)
-  if (length(dots) == 0) {
-    return(.data)
-  }
-
-  cols <- character(length(dots))
-  desc_flags <- logical(length(dots))
-
-  for (i in seq_along(dots)) {
-    e <- dots[[i]]
-    if (is.call(e) && identical(e[[1]], quote(desc))) {
-      cols[i] <- as.character(e[[2]])
-      desc_flags[i] <- TRUE
-    } else if (is.symbol(e)) {
-      cols[i] <- as.character(e)
-      desc_flags[i] <- FALSE
-    } else {
-      rlang::abort(paste0(
-        "arrange() supports bare column names and desc() only, got: ",
-        deparse(e)
-      ))
-    }
-  }
-
-  rlang::inform(
+  rlang::abort(
     paste0(
-      "Note: arrange() builds an order_by operation. ",
-      "Ordering support depends on the LanceDB backend."
-    )
+      "arrange() is not currently supported by the LanceDB backend.\n",
+      "Vector search results are automatically ordered by distance.\n",
+      "For scan queries, retrieve results with collect() and sort in R:\n",
+      "  collect() |> dplyr::arrange(...)"
+    ),
+    class = "lancedb_unsupported_op"
   )
-  append_op(.data, list(op = "order_by", cols = cols, desc = desc_flags))
 }
 
 # ---------------------------------------------------------------------------
@@ -252,14 +230,27 @@ collect.lancedb_lazy <- function(x, ..., as = c("data.frame", "arrow")) {
 
 #' Pull a Single Column from a LanceDB Lazy Query
 #'
-#' Convenience terminal that collects and extracts one column as a vector.
+#' Convenience terminal that collects the query results and extracts a single
+#' column as a vector. Equivalent to `collect(.data) |> dplyr::pull(var)`.
 #'
 #' @param .data A `lancedb_lazy` object.
-#' @param var Column to extract (unquoted name or integer position).
-#' @param name Not supported.
+#' @param var Column to extract. Can be an unquoted column name, a string, or
+#'   an integer position (negative counts from the right).
+#' @param name Not supported (present for dplyr compatibility).
 #' @param ... Ignored.
 #'
-#' @return A vector.
+#' @return A vector containing the values of the requested column.
+#'
+#' @examples
+#' \dontrun{
+#' # Pull by name
+#' lancedb_scan(tbl) %>% pull(name)
+#'
+#' # Pull last column
+#' lancedb_scan(tbl) %>% pull(-1)
+#' }
+#'
+#' @export
 pull.lancedb_lazy <- function(.data, var = -1, name = NULL, ...) {
   result <- collect.lancedb_lazy(.data)
   if (is.numeric(var)) {
@@ -291,11 +282,6 @@ ops_to_json <- function(ops) {
       },
       "limit" = {
         sprintf('{"op":"limit","n":%d}', op$n)
-      },
-      "order_by" = {
-        # Not natively supported in Rust execute yet, but include in plan
-        cols_json <- paste0('"', op$cols, '"', collapse = ",")
-        sprintf('{"op":"order_by","cols":[%s]}', cols_json)
       },
       sprintf('{"op":"%s"}', op$op)
     )

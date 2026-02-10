@@ -8,6 +8,11 @@ export(lancedb_search)
 export(lancedb_scan)
 export(show_query)
 
+# Table operations
+export(lancedb_count_rows)
+export(lancedb_add)
+export(lancedb_delete)
+
 # S3 methods for dplyr generics
 S3method(dplyr::filter, lancedb_lazy)
 S3method(dplyr::select, lancedb_lazy)

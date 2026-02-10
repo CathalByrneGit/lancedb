@@ -77,19 +77,50 @@ lancedb_scan(tbl) %>%
 
 ## Vector Similarity Search
 
-For vector search, use `lancedb_search()` with a query vector:
-```{r}
-# Assuming your table has a vector column
-query_vec <- rnorm(128)
+For vector search, first create a table with a vector (embedding) column.
+LanceDB stores fixed-size lists as vector columns:
 
-results <- lancedb_search(tbl, query_vec) %>%
-  filter(category == "B") %>%
-  select(id, name, category) %>%
-  slice_head(n = 10) %>%
-  collect()
+```{r}
+library(arrow)
+
+# Create data with a vector embedding column
+n <- 500
+embedding_dim <- 128
+
+# Generate sample data with embeddings
+ids <- 1:n
+texts <- paste0("document_", ids)
+categories <- sample(c("science", "history", "art"), n, replace = TRUE)
+embeddings <- lapply(ids, function(i) rnorm(embedding_dim))
+
+vec_df <- data.frame(
+  id = ids,
+  text = texts,
+  category = categories,
+  stringsAsFactors = FALSE
+)
+# Add the embedding column as a list column
+vec_df$embedding <- embeddings
+
+vec_tbl <- lancedb_create_table(con, "documents", vec_df)
 ```
 
-Results include a `_distance` column with the similarity score.
+Now search using a query vector:
+
+```{r}
+query_vec <- rnorm(embedding_dim)
+
+results <- lancedb_search(vec_tbl, query_vec) %>%
+  filter(category == "science") %>%
+  select(id, text, category) %>%
+  slice_head(n = 10) %>%
+  collect()
+
+print(results)
+```
+
+Results from `lancedb_search()` include a `_distance` column with the
+similarity score (lower = more similar).
 
 ## Filter Expressions
 
@@ -106,6 +137,21 @@ lancedb_scan(tbl) %>%
   filter("score > 0.5 AND category IN ('A', 'B')") %>%
   collect()
 ```
+
+### Supported R filter syntax
+
+| R Expression       | LanceDB Equivalent     |
+|--------------------|------------------------|
+| `x == 1`           | `x = 1`                |
+| `x != 2`           | `x != 2`               |
+| `x > 3`            | `x > 3`                |
+| `a & b`            | `a AND b`              |
+| `a | b`            | `a OR b`               |
+| `!x`               | `NOT (x)`              |
+| `x %in% c(1,2,3)` | `x IN (1, 2, 3)`       |
+| `is.na(x)`         | `x IS NULL`            |
+| `between(x, 1, 5)` | `x BETWEEN 1 AND 5`   |
+| `stats$strength`   | `stats.strength`       |
 
 ## Arrow Output
 
@@ -131,4 +177,26 @@ lancedb_delete(tbl, "category = 'D'")
 
 # Check count
 lancedb_count_rows(tbl)
+```
+
+## Python Comparison
+
+The R API mirrors the Python LanceDB query builder pattern:
+
+**Python:**
+```python
+table.search(qvec)
+  .where("stats.strength > 3")
+  .select(["name", "role", "description"])
+  .limit(5)
+  .to_pandas()
+```
+
+**R:**
+```{r}
+lancedb_search(tbl, qvec) %>%
+  filter(stats$strength > 3) %>%
+  select(name, role, description) %>%
+  slice_head(n = 5) %>%
+  collect()
 ```

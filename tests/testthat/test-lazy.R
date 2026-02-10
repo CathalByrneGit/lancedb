@@ -177,7 +177,7 @@ test_that("show_query works without error", {
   expect_output(show_query(lazy), "SELECT")
 })
 
-test_that("arrange builds order_by ops correctly", {
+test_that("arrange errors with clear message", {
   mock_table <- structure(
     list(ptr = NULL, name = "test_table", connection = NULL),
     class = "lancedb_table"
@@ -185,14 +185,14 @@ test_that("arrange builds order_by ops correctly", {
 
   lazy <- lancedb_scan(mock_table)
 
-  expect_message(
-    lazy2 <- arrange.lancedb_lazy(lazy, age, desc(name)),
-    "order_by"
+  expect_error(
+    arrange.lancedb_lazy(lazy, age, desc(name)),
+    class = "lancedb_unsupported_op"
   )
-
-  expect_equal(lazy2$ops[[1]]$op, "order_by")
-  expect_equal(lazy2$ops[[1]]$cols, c("age", "name"))
-  expect_equal(lazy2$ops[[1]]$desc, c(FALSE, TRUE))
+  expect_error(
+    arrange.lancedb_lazy(lazy, age),
+    "not currently supported"
+  )
 })
 
 test_that("chaining multiple operations works correctly", {
