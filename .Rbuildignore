@@ -1,0 +1,10 @@
+^.*\.Rproj$
+^\.Rproj\.user$
+^src/rust/target$
+^\.github$
+^README\.Rmd$
+^LICENSE\.md$
+^_pkgdown\.yml$
+^docs$
+^pkgdown$
+^\.lintr$

@@ -1,0 +1,134 @@
+---
+title: "Getting Started with lancedb"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Getting Started with lancedb}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+## Overview
+
+The `lancedb` R package provides an embedded vector database client using Rust
+bindings. It follows a lazy query pattern similar to `dbplyr`: you build up a
+query with familiar dplyr verbs, and nothing executes until you call `collect()`.
+
+## Connecting to a Database
+
+```{r}
+library(lancedb)
+library(dplyr)
+
+# Connect to a local LanceDB directory
+con <- lancedb_connect("/tmp/my_lancedb")
+print(con)
+```
+
+## Creating a Table
+
+Pass any `data.frame` (or `arrow::Table`) to `lancedb_create_table()`:
+
+```{r}
+df <- data.frame(
+  id    = 1:1000,
+  name  = paste0("item_", 1:1000),
+  score = runif(1000),
+  category = sample(c("A", "B", "C"), 1000, replace = TRUE)
+)
+
+tbl <- lancedb_create_table(con, "products", df)
+print(tbl)
+```
+
+## Table Scans with dplyr
+
+Use `lancedb_scan()` to begin a lazy query, then chain dplyr verbs:
+
+```{r}
+results <- lancedb_scan(tbl) %>%
+  filter(score > 0.8, category == "A") %>%
+  select(id, name, score) %>%
+  slice_head(n = 20) %>%
+  collect()
+
+head(results)
+```
+
+Note that `filter()`, `select()`, and `slice_head()` do **not** execute
+anything — they just append operations to the plan. Only `collect()` triggers
+execution.
+
+You can inspect the plan at any time:
+
+```{r}
+lancedb_scan(tbl) %>%
+  filter(score > 0.5) %>%
+  select(name, score) %>%
+  show_query()
+```
+
+## Vector Similarity Search
+
+For vector search, use `lancedb_search()` with a query vector:
+```{r}
+# Assuming your table has a vector column
+query_vec <- rnorm(128)
+
+results <- lancedb_search(tbl, query_vec) %>%
+  filter(category == "B") %>%
+  select(id, name, category) %>%
+  slice_head(n = 10) %>%
+  collect()
+```
+
+Results include a `_distance` column with the similarity score.
+
+## Filter Expressions
+
+You can use R expressions or raw strings:
+
+```{r}
+# R expressions (translated to LanceDB SQL)
+lancedb_scan(tbl) %>%
+  filter(score > 0.5 & category %in% c("A", "B")) %>%
+  collect()
+
+# Equivalent string filter
+lancedb_scan(tbl) %>%
+  filter("score > 0.5 AND category IN ('A', 'B')") %>%
+  collect()
+```
+
+## Arrow Output
+
+To get results as an Arrow Table instead of a data.frame:
+
+```{r}
+arrow_result <- lancedb_scan(tbl) %>%
+  collect(as = "arrow")
+
+class(arrow_result)
+```
+
+## Adding and Deleting Data
+
+```{r}
+# Add more data
+new_data <- data.frame(id = 1001:1010, name = paste0("new_", 1:10),
+                       score = runif(10), category = "D")
+lancedb_add(tbl, new_data)
+
+# Delete rows matching a predicate
+lancedb_delete(tbl, "category = 'D'")
+
+# Check count
+lancedb_count_rows(tbl)
+```

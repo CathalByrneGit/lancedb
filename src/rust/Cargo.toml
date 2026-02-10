@@ -1,0 +1,25 @@
+[package]
+name = "lancedb-r"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["staticlib"]
+name = "lancedb_r"
+
+[dependencies]
+extendr-api = "0.7"
+lancedb = "0.26"
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+arrow = { version = "53", default-features = false, features = ["ffi"] }
+arrow-schema = "53"
+arrow-array = "53"
+arrow-data = "53"
+arrow-ipc = { version = "53", features = ["lz4"] }
+futures = "0.3"
+serde_json = "1"
+
+[profile.release]
+opt-level = 2
+lto = "thin"

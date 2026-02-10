@@ -1,0 +1,30 @@
+Package: lancedb
+Title: R Client for LanceDB Embedded Vector Database
+Version: 0.1.0
+Authors@R:
+    person("LanceDB Contributors", role = c("aut", "cre"),
+           email = "dev@lancedb.com")
+Description: Provides an R interface to LanceDB, an embedded vector database for
+    AI applications. Uses Rust bindings via 'extendr' for high performance.
+    Supports lazy query building with 'dplyr'-compatible verbs (filter, select,
+    slice_head, arrange, collect) for both vector similarity search and table
+    scans. Queries are built lazily and executed only when collected, following
+    the same pattern as 'dbplyr'.
+License: Apache License (>= 2)
+URL: https://github.com/lancedb/lancedb
+BugReports: https://github.com/lancedb/lancedb/issues
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+SystemRequirements: Cargo (Rust's package manager), rustc (>= 1.70)
+Imports:
+    rlang (>= 1.0.0),
+    dplyr (>= 1.1.0),
+    arrow (>= 12.0.0)
+Suggests:
+    testthat (>= 3.0.0),
+    knitr,
+    rmarkdown
+Config/testthat/edition: 3
+Config/rextendr/version: 0.3.1
+VignetteBuilder: knitr
