@@ -197,12 +197,16 @@ collect.lancedb_lazy <- function(x, ..., as = c("data.frame", "arrow")) {
   # Serialize ops to JSON
   ops_json <- ops_to_json(x$ops)
 
+  # Serialize search config to JSON
+  search_config_json <- jsonlite_to_json(x$search_config)
+
   # Execute via Rust
   ipc_bytes <- rust_execute_query(
     x$table$ptr,
     x$mode,
     x$qvec,
-    ops_json
+    ops_json,
+    search_config_json
   )
 
   # Handle empty result

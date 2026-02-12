@@ -324,7 +324,7 @@ lancedb_merge_insert <- function(table, data, on,
 #' Create an Index on a Table
 #'
 #' Creates a scalar, vector, or full-text search index on the specified
-#' column(s).
+#' column(s). Additional parameters can be passed via `...` for fine-tuning.
 #'
 #' @param table A `lancedb_table` object.
 #' @param columns Character vector of column name(s) to index.
@@ -337,6 +337,30 @@ lancedb_merge_insert <- function(table, data, on,
 #'   Default `TRUE`.
 #' @param metric Distance metric for vector indices. One of `"l2"` (default),
 #'   `"cosine"`, `"dot"`. Ignored for non-vector index types.
+#' @param ... Additional index-specific configuration parameters:
+#'
+#'   **Vector indices** (ivf_pq, ivf_flat, ivf_hnsw_pq, ivf_hnsw_sq):
+#'   \describe{
+#'     \item{`num_partitions`}{Number of IVF partitions (default: auto).}
+#'     \item{`num_sub_vectors`}{Number of PQ sub-vectors (ivf_pq, ivf_hnsw_pq).}
+#'     \item{`num_bits`}{Number of PQ bits (ivf_pq, ivf_hnsw_pq).}
+#'     \item{`sample_rate`}{IVF training sample rate (default: 256).}
+#'     \item{`max_iterations`}{IVF training max iterations (default: 50).}
+#'     \item{`m`}{HNSW num edges per node (ivf_hnsw_pq, ivf_hnsw_sq; default: 20).}
+#'     \item{`ef_construction`}{HNSW construction search depth (default: 300).}
+#'   }
+#'
+#'   **Full-text search** (fts):
+#'   \describe{
+#'     \item{`with_position`}{Logical. Enable phrase queries (default: FALSE).}
+#'     \item{`base_tokenizer`}{Tokenizer type: `"simple"` (default) or `"ngram"`.}
+#'     \item{`language`}{Language for stemming/stop words, e.g. `"English"`.}
+#'     \item{`stem`}{Logical. Enable stemming (default: FALSE).}
+#'     \item{`remove_stop_words`}{Logical. Remove stop words (default: FALSE).}
+#'     \item{`ascii_folding`}{Logical. Normalize accents (default: FALSE).}
+#'     \item{`max_token_length`}{Integer. Max token length filter.}
+#'     \item{`lower_case`}{Logical. Lowercase tokens (default: TRUE).}
+#'   }
 #'
 #' @return The table (invisibly).
 #'
@@ -345,22 +369,38 @@ lancedb_merge_insert <- function(table, data, on,
 #' # Scalar index for fast filtering
 #' lancedb_create_index(tbl, "category", index_type = "btree")
 #'
-#' # Vector index for fast search
-#' lancedb_create_index(tbl, "embedding", index_type = "ivf_pq", metric = "cosine")
+#' # Vector index with custom parameters
+#' lancedb_create_index(tbl, "embedding", index_type = "ivf_pq",
+#'                      metric = "cosine", num_partitions = 256,
+#'                      num_sub_vectors = 16)
 #'
-#' # Full-text search index
-#' lancedb_create_index(tbl, "text", index_type = "fts")
+#' # HNSW vector index
+#' lancedb_create_index(tbl, "embedding", index_type = "ivf_hnsw_sq",
+#'                      metric = "cosine", m = 20, ef_construction = 150)
+#'
+#' # Full-text search with stemming and phrase support
+#' lancedb_create_index(tbl, "text", index_type = "fts",
+#'                      with_position = TRUE, language = "English",
+#'                      stem = TRUE, remove_stop_words = TRUE)
+#'
+#' # FTS with n-gram tokenizer for substring matching
+#' lancedb_create_index(tbl, "text", index_type = "fts",
+#'                      base_tokenizer = "ngram")
 #' }
 #'
 #' @export
 lancedb_create_index <- function(table, columns, index_type = "auto",
-                                  replace = TRUE, metric = "l2") {
+                                  replace = TRUE, metric = "l2", ...) {
   stopifnot(inherits(table, "lancedb_table"))
   stopifnot(is.character(columns), length(columns) >= 1)
   stopifnot(is.character(index_type), length(index_type) == 1)
   stopifnot(is.character(metric), length(metric) == 1)
 
-  rust_create_index(table$ptr, columns, index_type, replace, metric)
+  # Build config JSON from metric + extra arguments
+  config <- list(metric = metric, ...)
+  config_json <- jsonlite_to_json(config)
+
+  rust_create_index(table$ptr, columns, index_type, replace, config_json)
   invisible(table)
 }
 

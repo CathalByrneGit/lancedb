@@ -4,7 +4,7 @@ use futures::TryStreamExt;
 
 // ExecutableQuery and QueryBase are required as trait bounds for
 // .execute(), .only_if(), .limit(), and .select() on query builders.
-use lancedb::query::{ExecutableQuery, QueryBase, Select};
+use lancedb::query::{ExecutableQuery, FullTextSearchQuery, QueryBase, Select};
 
 mod runtime;
 use runtime::get_runtime;
@@ -229,43 +229,160 @@ fn rust_merge_insert(
 // Indexing
 // ---------------------------------------------------------------------------
 
-/// Create an index on the table.
+/// Helper: parse distance metric string to DistanceType.
+fn parse_distance_type(metric: &str) -> lancedb::DistanceType {
+    match metric.to_lowercase().as_str() {
+        "cosine" => lancedb::DistanceType::Cosine,
+        "dot" => lancedb::DistanceType::Dot,
+        _ => lancedb::DistanceType::L2,
+    }
+}
+
+/// Create an index on the table with full configuration.
+///
 /// `index_type`: "auto", "btree", "bitmap", "label_list", "fts",
 ///               "ivf_pq", "ivf_flat", "ivf_hnsw_pq", "ivf_hnsw_sq"
-/// `metric`: distance metric for vector indices ("l2", "cosine", "dot")
+/// `config_json`: JSON object with type-specific configuration:
+///   Vector indices: metric, num_partitions, num_sub_vectors, num_bits,
+///                   sample_rate, max_iterations, m, ef_construction
+///   FTS indices:    with_position, base_tokenizer, language, stem,
+///                   remove_stop_words, ascii_folding, max_token_length,
+///                   lower_case
 #[extendr]
 fn rust_create_index(
     table: &LanceTable,
     columns: Vec<String>,
     index_type: &str,
     replace: bool,
-    metric: &str,
+    config_json: &str,
 ) {
     let rt = get_runtime();
+    let cfg: serde_json::Value =
+        serde_json::from_str(config_json).unwrap_or(serde_json::json!({}));
 
-    let dist = match metric.to_lowercase().as_str() {
-        "cosine" => lancedb::DistanceType::Cosine,
-        "dot" => lancedb::DistanceType::Dot,
-        _ => lancedb::DistanceType::L2,
+    let metric_str = cfg
+        .get("metric")
+        .and_then(|v| v.as_str())
+        .unwrap_or("l2");
+    let dist = parse_distance_type(metric_str);
+
+    // Helper closures for reading optional config values
+    let get_u32 = |key: &str| -> Option<u32> {
+        cfg.get(key).and_then(|v| v.as_u64()).map(|n| n as u32)
     };
 
     let index = match index_type.to_lowercase().as_str() {
         "btree" => lancedb::index::Index::BTree(Default::default()),
         "bitmap" => lancedb::index::Index::Bitmap(Default::default()),
         "label_list" => lancedb::index::Index::LabelList(Default::default()),
-        "fts" => lancedb::index::Index::FTS(Default::default()),
-        "ivf_pq" => lancedb::index::Index::IvfPq(
-            lancedb::index::vector::IvfPqIndexBuilder::default().distance_type(dist),
-        ),
-        "ivf_flat" => lancedb::index::Index::IvfFlat(
-            lancedb::index::vector::IvfFlatIndexBuilder::default().distance_type(dist),
-        ),
-        "ivf_hnsw_pq" => lancedb::index::Index::IvfHnswPq(
-            lancedb::index::vector::IvfHnswPqIndexBuilder::default().distance_type(dist),
-        ),
-        "ivf_hnsw_sq" => lancedb::index::Index::IvfHnswSq(
-            lancedb::index::vector::IvfHnswSqIndexBuilder::default().distance_type(dist),
-        ),
+        "fts" => {
+            let mut fts = lancedb::index::scalar::FtsIndexBuilder::default();
+            if let Some(wp) = cfg.get("with_position").and_then(|v| v.as_bool()) {
+                fts = fts.with_position(wp);
+            }
+            if let Some(bt) = cfg.get("base_tokenizer").and_then(|v| v.as_str()) {
+                fts = fts.base_tokenizer(bt.to_string());
+            }
+            if let Some(lang) = cfg.get("language").and_then(|v| v.as_str()) {
+                fts = fts.language(lang.to_string());
+            }
+            if let Some(s) = cfg.get("stem").and_then(|v| v.as_bool()) {
+                fts = fts.stem(s);
+            }
+            if let Some(rsw) = cfg.get("remove_stop_words").and_then(|v| v.as_bool()) {
+                fts = fts.remove_stop_words(rsw);
+            }
+            if let Some(af) = cfg.get("ascii_folding").and_then(|v| v.as_bool()) {
+                fts = fts.ascii_folding(af);
+            }
+            if let Some(mtl) = get_u32("max_token_length") {
+                fts = fts.max_token_length(mtl);
+            }
+            if let Some(lc) = cfg.get("lower_case").and_then(|v| v.as_bool()) {
+                fts = fts.lower_case(lc);
+            }
+            lancedb::index::Index::FTS(fts)
+        }
+        "ivf_pq" => {
+            let mut b =
+                lancedb::index::vector::IvfPqIndexBuilder::default().distance_type(dist);
+            if let Some(np) = get_u32("num_partitions") {
+                b = b.num_partitions(np);
+            }
+            if let Some(nsv) = get_u32("num_sub_vectors") {
+                b = b.num_sub_vectors(nsv);
+            }
+            if let Some(nb) = get_u32("num_bits") {
+                b = b.num_bits(nb);
+            }
+            if let Some(sr) = get_u32("sample_rate") {
+                b = b.sample_rate(sr);
+            }
+            if let Some(mi) = get_u32("max_iterations") {
+                b = b.max_iterations(mi);
+            }
+            lancedb::index::Index::IvfPq(b)
+        }
+        "ivf_flat" => {
+            let mut b =
+                lancedb::index::vector::IvfFlatIndexBuilder::default().distance_type(dist);
+            if let Some(np) = get_u32("num_partitions") {
+                b = b.num_partitions(np);
+            }
+            if let Some(sr) = get_u32("sample_rate") {
+                b = b.sample_rate(sr);
+            }
+            if let Some(mi) = get_u32("max_iterations") {
+                b = b.max_iterations(mi);
+            }
+            lancedb::index::Index::IvfFlat(b)
+        }
+        "ivf_hnsw_pq" => {
+            let mut b = lancedb::index::vector::IvfHnswPqIndexBuilder::default()
+                .distance_type(dist);
+            if let Some(np) = get_u32("num_partitions") {
+                b = b.num_partitions(np);
+            }
+            if let Some(nsv) = get_u32("num_sub_vectors") {
+                b = b.num_sub_vectors(nsv);
+            }
+            if let Some(nb) = get_u32("num_bits") {
+                b = b.num_bits(nb);
+            }
+            if let Some(sr) = get_u32("sample_rate") {
+                b = b.sample_rate(sr);
+            }
+            if let Some(mi) = get_u32("max_iterations") {
+                b = b.max_iterations(mi);
+            }
+            if let Some(m) = get_u32("m") {
+                b = b.num_edges(m);
+            }
+            if let Some(efc) = get_u32("ef_construction") {
+                b = b.ef_construction(efc);
+            }
+            lancedb::index::Index::IvfHnswPq(b)
+        }
+        "ivf_hnsw_sq" => {
+            let mut b = lancedb::index::vector::IvfHnswSqIndexBuilder::default()
+                .distance_type(dist);
+            if let Some(np) = get_u32("num_partitions") {
+                b = b.num_partitions(np);
+            }
+            if let Some(sr) = get_u32("sample_rate") {
+                b = b.sample_rate(sr);
+            }
+            if let Some(mi) = get_u32("max_iterations") {
+                b = b.max_iterations(mi);
+            }
+            if let Some(m) = get_u32("m") {
+                b = b.num_edges(m);
+            }
+            if let Some(efc) = get_u32("ef_construction") {
+                b = b.ef_construction(efc);
+            }
+            lancedb::index::Index::IvfHnswSq(b)
+        }
         _ => lancedb::index::Index::Auto,
     };
 
@@ -470,16 +587,28 @@ fn rust_cleanup_old_versions(table: &LanceTable, older_than_days: i64) {
 // ---------------------------------------------------------------------------
 
 /// Execute a query plan and return Arrow IPC bytes.
+///
+/// Supports three modes:
+///   - "search": vector similarity search with optional nprobes/refine_factor/ef/column
+///   - "scan": full table scan with optional full_text_search
+///   - "fts": full-text search query
+///
+/// `search_config_json`: JSON object with search-time parameters:
+///   nprobes, refine_factor, ef, column, bypass_vector_index,
+///   fts_query (for scan mode with FTS), fts_columns (optional)
 #[extendr]
 fn rust_execute_query(
     table: &LanceTable,
     mode: &str,
     qvec: Nullable<Vec<f64>>,
     ops_json: &str,
+    search_config_json: &str,
 ) -> Raw {
     let rt = get_runtime();
     let ops: Vec<serde_json::Value> =
         serde_json::from_str(ops_json).expect("Invalid ops JSON");
+    let search_cfg: serde_json::Value =
+        serde_json::from_str(search_config_json).unwrap_or(serde_json::json!({}));
 
     rt.block_on(async {
         match mode {
@@ -493,6 +622,30 @@ fn rust_execute_query(
                     .inner
                     .vector_search(query_vec)
                     .expect("Failed to create vector search");
+
+                // Apply search-time parameters
+                if let Some(np) = search_cfg.get("nprobes").and_then(|v| v.as_u64()) {
+                    builder = builder.nprobes(np as usize);
+                }
+                if let Some(rf) = search_cfg.get("refine_factor").and_then(|v| v.as_u64()) {
+                    builder = builder.refine_factor(rf as u32);
+                }
+                if let Some(ef) = search_cfg.get("ef").and_then(|v| v.as_u64()) {
+                    builder = builder.ef(ef as usize);
+                }
+                if let Some(col) = search_cfg.get("column").and_then(|v| v.as_str()) {
+                    builder = builder.column(col);
+                }
+                if let Some(dt) = search_cfg.get("distance_type").and_then(|v| v.as_str()) {
+                    builder = builder.distance_type(parse_distance_type(dt));
+                }
+                if search_cfg
+                    .get("bypass_vector_index")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false)
+                {
+                    builder = builder.bypass_vector_index();
+                }
 
                 for op in &ops {
                     let op_type = op["op"].as_str().unwrap();
@@ -529,8 +682,39 @@ fn rust_execute_query(
                 let stream = builder.execute().await.expect("Failed to execute search");
                 stream_to_ipc_bytes(stream).await
             }
-            "scan" => {
+            "fts" | "scan" => {
                 let mut builder = table.inner.query();
+
+                // Apply full-text search if present (mode=fts or fts_query in config)
+                let fts_query = if mode == "fts" {
+                    search_cfg
+                        .get("fts_query")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string())
+                } else {
+                    search_cfg
+                        .get("fts_query")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string())
+                };
+
+                if let Some(query_text) = fts_query {
+                    let mut fts = FullTextSearchQuery::new(query_text);
+
+                    // Optionally restrict to specific column(s)
+                    if let Some(cols) = search_cfg.get("fts_columns").and_then(|v| v.as_array())
+                    {
+                        let col_strings: Vec<String> = cols
+                            .iter()
+                            .filter_map(|c| c.as_str().map(|s| s.to_string()))
+                            .collect();
+                        if !col_strings.is_empty() {
+                            fts = fts.columns(col_strings);
+                        }
+                    }
+
+                    builder = builder.full_text_search(fts);
+                }
 
                 for op in &ops {
                     let op_type = op["op"].as_str().unwrap();
@@ -556,7 +740,7 @@ fn rust_execute_query(
                         }
                         other => {
                             panic!(
-                                "Unsupported operation '{}' for scan mode. \
+                                "Unsupported operation '{}' for scan/fts mode. \
                                  Supported ops: where, select, limit.",
                                 other
                             );
@@ -564,7 +748,7 @@ fn rust_execute_query(
                     }
                 }
 
-                let stream = builder.execute().await.expect("Failed to execute scan");
+                let stream = builder.execute().await.expect("Failed to execute scan/fts");
                 stream_to_ipc_bytes(stream).await
             }
             _ => panic!("Unknown mode: {}", mode),

@@ -8,7 +8,8 @@ lancedb_create_index(
   columns,
   index_type = "auto",
   replace = TRUE,
-  metric = "l2"
+  metric = "l2",
+  ...
 )
 }
 \arguments{
@@ -21,22 +22,60 @@ lancedb_create_index(
 Default \code{TRUE}.}
 \item{metric}{Distance metric for vector indices. One of \code{"l2"} (default),
 \code{"cosine"}, \code{"dot"}. Ignored for non-vector index types.}
+\item{...}{Additional index-specific configuration parameters.
+
+\strong{Vector indices} (ivf_pq, ivf_flat, ivf_hnsw_pq, ivf_hnsw_sq):
+\describe{
+  \item{\code{num_partitions}}{Number of IVF partitions (default: auto).}
+  \item{\code{num_sub_vectors}}{Number of PQ sub-vectors (ivf_pq, ivf_hnsw_pq).}
+  \item{\code{num_bits}}{Number of PQ bits (ivf_pq, ivf_hnsw_pq).}
+  \item{\code{sample_rate}}{IVF training sample rate (default: 256).}
+  \item{\code{max_iterations}}{IVF training max iterations (default: 50).}
+  \item{\code{m}}{HNSW num edges per node (ivf_hnsw_pq, ivf_hnsw_sq; default: 20).}
+  \item{\code{ef_construction}}{HNSW construction search depth (default: 300).}
+}
+
+\strong{Full-text search} (fts):
+\describe{
+  \item{\code{with_position}}{Logical. Enable phrase queries (default: FALSE).}
+  \item{\code{base_tokenizer}}{Tokenizer type: \code{"simple"} (default) or \code{"ngram"}.}
+  \item{\code{language}}{Language for stemming/stop words, e.g. \code{"English"}.}
+  \item{\code{stem}}{Logical. Enable stemming (default: FALSE).}
+  \item{\code{remove_stop_words}}{Logical. Remove stop words (default: FALSE).}
+  \item{\code{ascii_folding}}{Logical. Normalize accents (default: FALSE).}
+  \item{\code{max_token_length}}{Integer. Max token length filter.}
+  \item{\code{lower_case}}{Logical. Lowercase tokens (default: TRUE).}
+}
+}
 }
 \value{
 The table (invisibly).
 }
 \description{
 Creates a scalar, vector, or full-text search index on the specified column(s).
+Additional parameters can be passed via \code{...} for fine-tuning.
 }
 \examples{
 \dontrun{
 # Scalar index
 lancedb_create_index(tbl, "category", index_type = "btree")
 
-# Vector index
-lancedb_create_index(tbl, "embedding", index_type = "ivf_pq", metric = "cosine")
+# Vector index with custom parameters
+lancedb_create_index(tbl, "embedding", index_type = "ivf_pq",
+                     metric = "cosine", num_partitions = 256,
+                     num_sub_vectors = 16)
 
-# Full-text search index
-lancedb_create_index(tbl, "text", index_type = "fts")
+# HNSW vector index
+lancedb_create_index(tbl, "embedding", index_type = "ivf_hnsw_sq",
+                     metric = "cosine", m = 20, ef_construction = 150)
+
+# Full-text search with stemming and phrase support
+lancedb_create_index(tbl, "text", index_type = "fts",
+                     with_position = TRUE, language = "English",
+                     stem = TRUE, remove_stop_words = TRUE)
+
+# FTS with n-gram tokenizer for substring matching
+lancedb_create_index(tbl, "text", index_type = "fts",
+                     base_tokenizer = "ngram")
 }
 }

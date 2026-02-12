@@ -5,6 +5,7 @@ export(lancedb_connect)
 export(lancedb_open_table)
 export(lancedb_create_table)
 export(lancedb_search)
+export(lancedb_fts_search)
 export(lancedb_scan)
 export(show_query)
 

@@ -135,10 +135,10 @@ rust_merge_insert <- function(table, on_columns, ipc_bytes,
 #' @param columns Character vector. Column names to index.
 #' @param index_type Character. Index type string.
 #' @param replace Logical. Replace existing index.
-#' @param metric Character. Distance metric.
+#' @param config_json Character. JSON config with type-specific parameters.
 #' @noRd
-rust_create_index <- function(table, columns, index_type, replace, metric) {
-  invisible(.Call("wrap__rust_create_index", table, columns, index_type, replace, metric))
+rust_create_index <- function(table, columns, index_type, replace, config_json) {
+  invisible(.Call("wrap__rust_create_index", table, columns, index_type, replace, config_json))
 }
 
 #' List indices (Rust binding)
@@ -237,13 +237,14 @@ rust_cleanup_old_versions <- function(table, older_than_days) {
 
 #' Execute a query plan (Rust binding)
 #' @param table External pointer to LanceTable.
-#' @param mode Character. "search" or "scan".
+#' @param mode Character. "search", "scan", or "fts".
 #' @param qvec Numeric vector or NULL.
 #' @param ops_json Character. JSON-encoded operations array.
+#' @param search_config_json Character. JSON config for search parameters.
 #' @return Raw vector of Arrow IPC stream bytes.
 #' @noRd
-rust_execute_query <- function(table, mode, qvec, ops_json) {
-  .Call("wrap__rust_execute_query", table, mode, qvec, ops_json)
+rust_execute_query <- function(table, mode, qvec, ops_json, search_config_json) {
+  .Call("wrap__rust_execute_query", table, mode, qvec, ops_json, search_config_json)
 }
 
 # nolint end

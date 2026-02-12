@@ -21,7 +21,7 @@ SEXP wrap__rust_add_data(SEXP table, SEXP ipc_bytes, SEXP mode);
 SEXP wrap__rust_delete_rows(SEXP table, SEXP predicate);
 SEXP wrap__rust_update_rows(SEXP table, SEXP where_clause, SEXP columns_json);
 SEXP wrap__rust_merge_insert(SEXP table, SEXP on_columns, SEXP ipc_bytes, SEXP when_matched_update_all, SEXP when_not_matched_insert_all, SEXP when_not_matched_by_source_delete);
-SEXP wrap__rust_create_index(SEXP table, SEXP columns, SEXP index_type, SEXP replace, SEXP metric);
+SEXP wrap__rust_create_index(SEXP table, SEXP columns, SEXP index_type, SEXP replace, SEXP config_json);
 SEXP wrap__rust_list_indices(SEXP table);
 SEXP wrap__rust_drop_index(SEXP table, SEXP name);
 SEXP wrap__rust_add_columns(SEXP table, SEXP transforms_json);
@@ -34,7 +34,7 @@ SEXP wrap__rust_checkout_latest(SEXP table);
 SEXP wrap__rust_restore(SEXP table);
 SEXP wrap__rust_compact_files(SEXP table);
 SEXP wrap__rust_cleanup_old_versions(SEXP table, SEXP older_than_days);
-SEXP wrap__rust_execute_query(SEXP table, SEXP mode, SEXP qvec, SEXP ops_json);
+SEXP wrap__rust_execute_query(SEXP table, SEXP mode, SEXP qvec, SEXP ops_json, SEXP search_config_json);
 
 static const R_CallMethodDef CallEntries[] = {
     {"wrap__rust_connect",                         (DL_FUNC) &wrap__rust_connect, 1},
@@ -63,7 +63,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"wrap__rust_restore",                         (DL_FUNC) &wrap__rust_restore, 1},
     {"wrap__rust_compact_files",                   (DL_FUNC) &wrap__rust_compact_files, 1},
     {"wrap__rust_cleanup_old_versions",            (DL_FUNC) &wrap__rust_cleanup_old_versions, 2},
-    {"wrap__rust_execute_query",                   (DL_FUNC) &wrap__rust_execute_query, 4},
+    {"wrap__rust_execute_query",                   (DL_FUNC) &wrap__rust_execute_query, 5},
     {NULL, NULL, 0}
 };
 

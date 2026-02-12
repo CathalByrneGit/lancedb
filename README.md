@@ -127,7 +127,8 @@ results <- lancedb_search(tbl, query_vec) %>%
 
 | Function | Description |
 |---|---|
-| `lancedb_search(table, query_vector)` | Start a lazy vector similarity search |
+| `lancedb_search(table, query_vector, ...)` | Start a lazy vector similarity search (supports `nprobes`, `refine_factor`, `ef`, `column`, `distance_type`, `bypass_vector_index`) |
+| `lancedb_fts_search(table, query_text, columns)` | Start a lazy full-text search (BM25) |
 | `lancedb_scan(table)` | Start a lazy full table scan |
 
 ### dplyr Verbs (on `lancedb_lazy` objects)
@@ -178,15 +179,69 @@ lancedb_merge_insert(tbl, new_data, on = "id", when_matched_update_all = FALSE)
 # Scalar index for fast filtering
 lancedb_create_index(tbl, "category", index_type = "btree")
 
-# Vector index for fast ANN search
-lancedb_create_index(tbl, "vec", index_type = "ivf_pq", metric = "cosine")
+# Vector index with custom parameters
+lancedb_create_index(tbl, "vec", index_type = "ivf_pq",
+                     metric = "cosine", num_partitions = 256,
+                     num_sub_vectors = 16)
 
-# Full-text search index
-lancedb_create_index(tbl, "text", index_type = "fts")
+# HNSW vector index (high recall)
+lancedb_create_index(tbl, "vec", index_type = "ivf_hnsw_sq",
+                     metric = "cosine", m = 20, ef_construction = 300)
+
+# Full-text search with stemming + phrase support
+lancedb_create_index(tbl, "text", index_type = "fts",
+                     with_position = TRUE, language = "English",
+                     stem = TRUE, remove_stop_words = TRUE)
+
+# FTS with n-gram tokenizer for substring matching
+lancedb_create_index(tbl, "text", index_type = "fts",
+                     base_tokenizer = "ngram")
 
 # List and drop indices
 lancedb_list_indices(tbl)
 lancedb_drop_index(tbl, "my_index")
+```
+
+### Full-Text Search
+
+```r
+# Create FTS index first
+lancedb_create_index(tbl, "content", index_type = "fts",
+                     with_position = TRUE, stem = TRUE)
+
+# Search for terms
+results <- lancedb_fts_search(tbl, "machine learning") %>%
+  select(title, content) %>%
+  slice_head(n = 10) %>%
+  collect()
+
+# Search specific columns
+results <- lancedb_fts_search(tbl, "neural networks",
+                               columns = c("title", "abstract")) %>%
+  collect()
+```
+
+### Tuned Vector Search
+
+```r
+# Search with more IVF probes for higher recall
+results <- lancedb_search(tbl, query_vec,
+                          nprobes = 50,
+                          refine_factor = 10) %>%
+  slice_head(n = 20) %>%
+  collect()
+
+# Search specific vector column with HNSW ef parameter
+results <- lancedb_search(tbl, query_vec,
+                          column = "embedding",
+                          ef = 64,
+                          distance_type = "cosine") %>%
+  collect()
+
+# Exhaustive flat search (no index)
+results <- lancedb_search(tbl, query_vec,
+                          bypass_vector_index = TRUE) %>%
+  collect()
 ```
 
 ### Schema Evolution
