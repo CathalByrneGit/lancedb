@@ -287,6 +287,12 @@ ops_to_json <- function(ops) {
       "limit" = {
         sprintf('{"op":"limit","n":%d}', op$n)
       },
+      "offset" = {
+        sprintf('{"op":"offset","n":%d}', op$n)
+      },
+      "postfilter" = '{"op":"postfilter"}',
+      "fast_search" = '{"op":"fast_search"}',
+      "with_row_id" = '{"op":"with_row_id"}',
       sprintf('{"op":"%s"}', op$op)
     )
   }, character(1))

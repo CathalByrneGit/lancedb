@@ -586,16 +586,89 @@ fn rust_cleanup_old_versions(table: &LanceTable, older_than_days: i64) {
 // Query execution: the heart of lazy collect
 // ---------------------------------------------------------------------------
 
+/// Apply common QueryBase operations to any query builder.
+/// Handles: where, select, limit, offset, postfilter, fast_search, with_row_id.
+fn apply_common_ops<Q: QueryBase>(mut builder: Q, ops: &[serde_json::Value]) -> Q {
+    for op in ops {
+        let op_type = op["op"].as_str().unwrap();
+        match op_type {
+            "where" => {
+                let expr = op["expr"].as_str().unwrap();
+                builder = builder.only_if(expr);
+            }
+            "select" => {
+                let cols: Vec<String> = op["cols"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|v| v.as_str().unwrap().to_string())
+                    .collect();
+                builder = builder.select(Select::columns(
+                    &cols.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
+                ));
+            }
+            "limit" => {
+                let n = op["n"].as_u64().unwrap() as usize;
+                builder = builder.limit(n);
+            }
+            "offset" => {
+                let n = op["n"].as_u64().unwrap() as usize;
+                builder = builder.offset(n);
+            }
+            "postfilter" => {
+                builder = builder.postfilter();
+            }
+            "fast_search" => {
+                builder = builder.fast_search();
+            }
+            "with_row_id" => {
+                builder = builder.with_row_id();
+            }
+            other => {
+                panic!(
+                    "Unsupported operation '{}'. \
+                     Supported ops: where, select, limit, offset, postfilter, fast_search, with_row_id.",
+                    other
+                );
+            }
+        }
+    }
+    builder
+}
+
+/// Build a FullTextSearchQuery from the search config.
+fn build_fts_query(search_cfg: &serde_json::Value) -> Option<FullTextSearchQuery> {
+    search_cfg
+        .get("fts_query")
+        .and_then(|v| v.as_str())
+        .map(|query_text| {
+            let mut fts = FullTextSearchQuery::new(query_text.to_string());
+            if let Some(cols) = search_cfg.get("fts_columns").and_then(|v| v.as_array()) {
+                let col_strings: Vec<String> = cols
+                    .iter()
+                    .filter_map(|c| c.as_str().map(|s| s.to_string()))
+                    .collect();
+                if !col_strings.is_empty() {
+                    fts = fts.columns(col_strings);
+                }
+            }
+            fts
+        })
+}
+
 /// Execute a query plan and return Arrow IPC bytes.
 ///
-/// Supports three modes:
-///   - "search": vector similarity search with optional nprobes/refine_factor/ef/column
-///   - "scan": full table scan with optional full_text_search
+/// Supports four modes:
+///   - "search": vector similarity search
+///   - "scan": full table scan (optionally with FTS)
 ///   - "fts": full-text search query
+///   - "hybrid": combined vector + FTS with reranking
 ///
 /// `search_config_json`: JSON object with search-time parameters:
-///   nprobes, refine_factor, ef, column, bypass_vector_index,
-///   fts_query (for scan mode with FTS), fts_columns (optional)
+///   Vector: nprobes, refine_factor, ef, column, distance_type, bypass_vector_index,
+///           distance_range_lower, distance_range_upper
+///   FTS: fts_query, fts_columns
+///   Hybrid: fts_query, fts_columns, norm ("rank" or "score")
 #[extendr]
 fn rust_execute_query(
     table: &LanceTable,
@@ -623,7 +696,7 @@ fn rust_execute_query(
                     .vector_search(query_vec)
                     .expect("Failed to create vector search");
 
-                // Apply search-time parameters
+                // Apply vector search-time parameters
                 if let Some(np) = search_cfg.get("nprobes").and_then(|v| v.as_u64()) {
                     builder = builder.nprobes(np as usize);
                 }
@@ -647,106 +720,84 @@ fn rust_execute_query(
                     builder = builder.bypass_vector_index();
                 }
 
-                for op in &ops {
-                    let op_type = op["op"].as_str().unwrap();
-                    match op_type {
-                        "where" => {
-                            let expr = op["expr"].as_str().unwrap();
-                            builder = builder.only_if(expr);
-                        }
-                        "select" => {
-                            let cols: Vec<String> = op["cols"]
-                                .as_array()
-                                .unwrap()
-                                .iter()
-                                .map(|v| v.as_str().unwrap().to_string())
-                                .collect();
-                            builder = builder.select(Select::columns(
-                                &cols.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
-                            ));
-                        }
-                        "limit" => {
-                            let n = op["n"].as_u64().unwrap() as usize;
-                            builder = builder.limit(n);
-                        }
-                        other => {
-                            panic!(
-                                "Unsupported operation '{}' for vector search mode. \
-                                 Supported ops: where, select, limit.",
-                                other
-                            );
-                        }
-                    }
+                // Distance range filtering
+                let dr_lower = search_cfg
+                    .get("distance_range_lower")
+                    .and_then(|v| v.as_f64())
+                    .map(|v| v as f32);
+                let dr_upper = search_cfg
+                    .get("distance_range_upper")
+                    .and_then(|v| v.as_f64())
+                    .map(|v| v as f32);
+                if dr_lower.is_some() || dr_upper.is_some() {
+                    builder = builder.distance_range(dr_lower, dr_upper);
                 }
 
+                // Apply common ops (where, select, limit, offset, postfilter, etc.)
+                builder = apply_common_ops(builder, &ops);
+
                 let stream = builder.execute().await.expect("Failed to execute search");
+                stream_to_ipc_bytes(stream).await
+            }
+            "hybrid" => {
+                // Hybrid search: vector + FTS combined
+                let query_vec: Vec<f32> = match qvec {
+                    Nullable::NotNull(v) => v.iter().map(|x| *x as f32).collect(),
+                    _ => panic!("hybrid mode requires a query vector"),
+                };
+
+                let mut builder = table.inner.query();
+
+                // Add vector search component
+                builder = builder.nearest_to(query_vec).expect("Failed to set vector query");
+
+                // Apply vector search parameters
+                if let Some(np) = search_cfg.get("nprobes").and_then(|v| v.as_u64()) {
+                    builder = builder.nprobes(np as usize);
+                }
+                if let Some(rf) = search_cfg.get("refine_factor").and_then(|v| v.as_u64()) {
+                    builder = builder.refine_factor(rf as u32);
+                }
+                if let Some(ef) = search_cfg.get("ef").and_then(|v| v.as_u64()) {
+                    builder = builder.ef(ef as usize);
+                }
+                if let Some(col) = search_cfg.get("column").and_then(|v| v.as_str()) {
+                    builder = builder.column(col);
+                }
+                if let Some(dt) = search_cfg.get("distance_type").and_then(|v| v.as_str()) {
+                    builder = builder.distance_type(parse_distance_type(dt));
+                }
+
+                // Add FTS component
+                if let Some(fts) = build_fts_query(&search_cfg) {
+                    builder = builder.full_text_search(fts);
+                }
+
+                // Normalization method for hybrid score merging
+                if let Some(norm_str) = search_cfg.get("norm").and_then(|v| v.as_str()) {
+                    let norm = match norm_str.to_lowercase().as_str() {
+                        "score" => lancedb::query::NormalizeMethod::Score,
+                        _ => lancedb::query::NormalizeMethod::Rank,
+                    };
+                    builder = builder.norm(norm);
+                }
+
+                // Apply common ops
+                builder = apply_common_ops(builder, &ops);
+
+                let stream = builder.execute().await.expect("Failed to execute hybrid search");
                 stream_to_ipc_bytes(stream).await
             }
             "fts" | "scan" => {
                 let mut builder = table.inner.query();
 
-                // Apply full-text search if present (mode=fts or fts_query in config)
-                let fts_query = if mode == "fts" {
-                    search_cfg
-                        .get("fts_query")
-                        .and_then(|v| v.as_str())
-                        .map(|s| s.to_string())
-                } else {
-                    search_cfg
-                        .get("fts_query")
-                        .and_then(|v| v.as_str())
-                        .map(|s| s.to_string())
-                };
-
-                if let Some(query_text) = fts_query {
-                    let mut fts = FullTextSearchQuery::new(query_text);
-
-                    // Optionally restrict to specific column(s)
-                    if let Some(cols) = search_cfg.get("fts_columns").and_then(|v| v.as_array())
-                    {
-                        let col_strings: Vec<String> = cols
-                            .iter()
-                            .filter_map(|c| c.as_str().map(|s| s.to_string()))
-                            .collect();
-                        if !col_strings.is_empty() {
-                            fts = fts.columns(col_strings);
-                        }
-                    }
-
+                // Apply full-text search if present
+                if let Some(fts) = build_fts_query(&search_cfg) {
                     builder = builder.full_text_search(fts);
                 }
 
-                for op in &ops {
-                    let op_type = op["op"].as_str().unwrap();
-                    match op_type {
-                        "where" => {
-                            let expr = op["expr"].as_str().unwrap();
-                            builder = builder.only_if(expr);
-                        }
-                        "select" => {
-                            let cols: Vec<String> = op["cols"]
-                                .as_array()
-                                .unwrap()
-                                .iter()
-                                .map(|v| v.as_str().unwrap().to_string())
-                                .collect();
-                            builder = builder.select(Select::columns(
-                                &cols.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
-                            ));
-                        }
-                        "limit" => {
-                            let n = op["n"].as_u64().unwrap() as usize;
-                            builder = builder.limit(n);
-                        }
-                        other => {
-                            panic!(
-                                "Unsupported operation '{}' for scan/fts mode. \
-                                 Supported ops: where, select, limit.",
-                                other
-                            );
-                        }
-                    }
-                }
+                // Apply common ops
+                builder = apply_common_ops(builder, &ops);
 
                 let stream = builder.execute().await.expect("Failed to execute scan/fts");
                 stream_to_ipc_bytes(stream).await

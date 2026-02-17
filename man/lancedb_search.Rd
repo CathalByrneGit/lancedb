@@ -11,7 +11,8 @@ lancedb_search(
   ef = NULL,
   column = NULL,
   distance_type = NULL,
-  bypass_vector_index = FALSE
+  bypass_vector_index = FALSE,
+  distance_range = NULL
 )
 }
 \arguments{
@@ -29,6 +30,9 @@ lancedb_search(
   One of \code{"l2"}, \code{"cosine"}, \code{"dot"}. Default \code{NULL}.}
 \item{bypass_vector_index}{Logical. If \code{TRUE}, perform exhaustive flat
   search instead of using the index. Default \code{FALSE}.}
+\item{distance_range}{Numeric vector of length 2 \code{c(lower, upper)}.
+  Only return results within this distance range. Default \code{NULL}
+  (no range filter).}
 }
 \value{
 A \code{lancedb_lazy} object in \code{"search"} mode.
@@ -69,5 +73,6 @@ results <- lancedb_search(tbl, runif(128),
 }
 }
 \seealso{
-\code{\link{lancedb_fts_search}}, \code{\link{lancedb_scan}}
+\code{\link{lancedb_fts_search}}, \code{\link{lancedb_hybrid_search}},
+\code{\link{lancedb_scan}}
 }

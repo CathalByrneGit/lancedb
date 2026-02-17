@@ -18,6 +18,8 @@
 #'   One of `"l2"`, `"cosine"`, `"dot"`. Default `NULL` (use index metric).
 #' @param bypass_vector_index Logical. If `TRUE`, perform exhaustive flat search
 #'   instead of using the index. Default `FALSE`.
+#' @param distance_range Numeric vector of length 2 `c(lower, upper)`. Only
+#'   return results within this distance range. Default `NULL` (no range filter).
 #'
 #' @return A `lancedb_lazy` object.
 #'
@@ -54,7 +56,8 @@ lancedb_search <- function(table, query_vector,
                             ef = NULL,
                             column = NULL,
                             distance_type = NULL,
-                            bypass_vector_index = FALSE) {
+                            bypass_vector_index = FALSE,
+                            distance_range = NULL) {
   stopifnot(inherits(table, "lancedb_table"))
   stopifnot(is.numeric(query_vector), length(query_vector) > 0)
 
@@ -66,6 +69,14 @@ lancedb_search <- function(table, query_vector,
   if (!is.null(column)) search_config$column <- as.character(column)
   if (!is.null(distance_type)) search_config$distance_type <- as.character(distance_type)
   if (isTRUE(bypass_vector_index)) search_config$bypass_vector_index <- TRUE
+
+  # Distance range filter: numeric vector of length 2 (lower, upper) or named list
+
+  if (!is.null(distance_range)) {
+    stopifnot(is.numeric(distance_range), length(distance_range) == 2)
+    search_config$distance_range_lower <- distance_range[1]
+    search_config$distance_range_upper <- distance_range[2]
+  }
 
   new_lancedb_lazy(
     table = table,
@@ -170,6 +181,184 @@ lancedb_scan <- function(table) {
   )
 }
 
+#' Create a Hybrid Search Query
+#'
+#' Begins a lazy hybrid search that combines vector similarity and full-text
+#' search (BM25) on a LanceDB table. Results are merged using the specified
+#' normalization method (reciprocal rank fusion by default). Requires both a
+#' vector index and an FTS index on the table.
+#'
+#' @param table A `lancedb_table` object.
+#' @param query_vector A numeric vector to use as the vector search component.
+#' @param query_text Character string. The full-text search query.
+#' @param fts_columns Character vector. Optional FTS column names to search.
+#'   If `NULL`, all FTS-indexed columns are searched.
+#' @param nprobes Integer. Number of IVF partitions for vector search.
+#' @param refine_factor Integer. PQ refinement multiplier.
+#' @param ef Integer. HNSW search candidates.
+#' @param column Character. Name of the vector column. Default `NULL`.
+#' @param distance_type Character. Override distance metric (`"l2"`, `"cosine"`,
+#'   `"dot"`). Default `NULL`.
+#' @param norm Character. Score normalization method for merging: `"rank"`
+#'   (reciprocal rank fusion, default) or `"score"` (score-based).
+#'
+#' @return A `lancedb_lazy` object in `"hybrid"` mode.
+#'
+#' @examples
+#' \dontrun{
+#' library(dplyr)
+#'
+#' # Hybrid search combining vector and text
+#' results <- lancedb_hybrid_search(tbl, runif(128), "machine learning") %>%
+#'   select(title, content) %>%
+#'   slice_head(n = 10) %>%
+#'   collect()
+#'
+#' # With score-based normalization
+#' results <- lancedb_hybrid_search(tbl, runif(128), "neural networks",
+#'                                   norm = "score",
+#'                                   column = "embedding",
+#'                                   distance_type = "cosine") %>%
+#'   collect()
+#' }
+#'
+#' @seealso [lancedb_search()], [lancedb_fts_search()]
+#' @export
+lancedb_hybrid_search <- function(table, query_vector, query_text,
+                                   fts_columns = NULL,
+                                   nprobes = NULL,
+                                   refine_factor = NULL,
+                                   ef = NULL,
+                                   column = NULL,
+                                   distance_type = NULL,
+                                   norm = "rank") {
+  stopifnot(inherits(table, "lancedb_table"))
+  stopifnot(is.numeric(query_vector), length(query_vector) > 0)
+  stopifnot(is.character(query_text), length(query_text) == 1, nchar(query_text) > 0)
+
+  search_config <- list(fts_query = query_text)
+  if (!is.null(fts_columns)) {
+    stopifnot(is.character(fts_columns))
+    search_config$fts_columns <- fts_columns
+  }
+  if (!is.null(nprobes)) search_config$nprobes <- as.integer(nprobes)
+  if (!is.null(refine_factor)) search_config$refine_factor <- as.integer(refine_factor)
+  if (!is.null(ef)) search_config$ef <- as.integer(ef)
+  if (!is.null(column)) search_config$column <- as.character(column)
+  if (!is.null(distance_type)) search_config$distance_type <- as.character(distance_type)
+  if (!is.null(norm)) search_config$norm <- match.arg(norm, c("rank", "score"))
+
+  new_lancedb_lazy(
+    table = table,
+    mode = "hybrid",
+    qvec = as.double(query_vector),
+    ops = list(),
+    search_config = search_config
+  )
+}
+
+# ---------------------------------------------------------------------------
+# Query modifier verbs (piping-friendly)
+# ---------------------------------------------------------------------------
+
+#' Skip Rows in Query Results
+#'
+#' Adds an offset to the query, skipping the first `n` rows. Useful for
+#' pagination when combined with [slice_head()].
+#'
+#' @param .data A `lancedb_lazy` object.
+#' @param n Integer. Number of rows to skip.
+#'
+#' @return A new `lancedb_lazy` object with the offset appended.
+#'
+#' @examples
+#' \dontrun{
+#' # Page 2 of results (rows 11-20)
+#' lancedb_scan(tbl) %>%
+#'   lancedb_offset(10) %>%
+#'   slice_head(n = 10) %>%
+#'   collect()
+#' }
+#'
+#' @export
+lancedb_offset <- function(.data, n) {
+  stopifnot(inherits(.data, "lancedb_lazy"))
+  stopifnot(is.numeric(n), length(n) == 1, n >= 0)
+  append_op(.data, list(op = "offset", n = as.integer(n)))
+}
+
+#' Enable Post-Filtering
+#'
+#' When enabled, filter predicates are applied after the search rather than
+#' before. This ensures the search always uses the full index but may return
+#' fewer results than the requested limit after filtering.
+#'
+#' @param .data A `lancedb_lazy` object.
+#'
+#' @return A new `lancedb_lazy` object with post-filtering enabled.
+#'
+#' @examples
+#' \dontrun{
+#' # Post-filter: search first, then apply filter
+#' lancedb_search(tbl, runif(128)) %>%
+#'   filter(category == "science") %>%
+#'   lancedb_postfilter() %>%
+#'   slice_head(n = 10) %>%
+#'   collect()
+#' }
+#'
+#' @export
+lancedb_postfilter <- function(.data) {
+  stopifnot(inherits(.data, "lancedb_lazy"))
+  append_op(.data, list(op = "postfilter"))
+}
+
+#' Enable Fast Search Mode
+#'
+#' Enables approximate (faster) search that may skip some results for speed.
+#' Useful for large-scale searches where approximate results are acceptable.
+#'
+#' @param .data A `lancedb_lazy` object.
+#'
+#' @return A new `lancedb_lazy` object with fast search enabled.
+#'
+#' @examples
+#' \dontrun{
+#' lancedb_search(tbl, runif(128)) %>%
+#'   lancedb_fast_search() %>%
+#'   slice_head(n = 10) %>%
+#'   collect()
+#' }
+#'
+#' @export
+lancedb_fast_search <- function(.data) {
+  stopifnot(inherits(.data, "lancedb_lazy"))
+  append_op(.data, list(op = "fast_search"))
+}
+
+#' Include Row IDs in Results
+#'
+#' Adds the internal LanceDB row ID (`_rowid`) column to the query results.
+#' This is useful for identifying specific rows for updates or deletes.
+#'
+#' @param .data A `lancedb_lazy` object.
+#'
+#' @return A new `lancedb_lazy` object that will include row IDs.
+#'
+#' @examples
+#' \dontrun{
+#' lancedb_scan(tbl) %>%
+#'   lancedb_with_row_id() %>%
+#'   slice_head(n = 10) %>%
+#'   collect()
+#' }
+#'
+#' @export
+lancedb_with_row_id <- function(.data) {
+  stopifnot(inherits(.data, "lancedb_lazy"))
+  append_op(.data, list(op = "with_row_id"))
+}
+
 #' Create a new lancedb_lazy object (internal constructor)
 #' @noRd
 new_lancedb_lazy <- function(table, mode, qvec, ops, search_config = list()) {
@@ -208,7 +397,7 @@ print.lancedb_lazy <- function(x, ...) {
   if (!is.null(x$qvec)) {
     cat("  Query vector: [", length(x$qvec), "dimensions ]\n")
   }
-  if (x$mode == "fts") {
+  if (x$mode %in% c("fts", "hybrid")) {
     fts_q <- x$search_config$fts_query
     if (!is.null(fts_q)) cat("  FTS query:", fts_q, "\n")
   }
@@ -233,6 +422,10 @@ print.lancedb_lazy <- function(x, ...) {
         "where" = paste0("filter: ", op$expr),
         "select" = paste0("select: ", paste(op$cols, collapse = ", ")),
         "limit" = paste0("limit: ", op$n),
+        "offset" = paste0("offset: ", op$n),
+        "postfilter" = "postfilter",
+        "fast_search" = "fast_search",
+        "with_row_id" = "with_row_id",
         paste0(op$op, ": ...")
       )
       cat("    ", i, ". ", desc, "\n", sep = "")
@@ -282,6 +475,21 @@ show_query <- function(x) {
     if (!is.null(x$search_config$fts_columns)) {
       cat("Columns:", paste(x$search_config$fts_columns, collapse = ", "), "\n")
     }
+  } else if (x$mode == "hybrid") {
+    cat("Type: Hybrid Search (Vector + FTS)\n")
+    cat("Query vector:", length(x$qvec), "dimensions\n")
+    cat("FTS query:", x$search_config$fts_query, "\n")
+    if (!is.null(x$search_config$fts_columns)) {
+      cat("FTS columns:", paste(x$search_config$fts_columns, collapse = ", "), "\n")
+    }
+    sc <- x$search_config
+    sc$fts_query <- NULL
+    sc$fts_columns <- NULL
+    if (length(sc) > 0) {
+      for (nm in names(sc)) {
+        cat("  ", nm, ":", sc[[nm]], "\n")
+      }
+    }
   } else {
     cat("Type: Table Scan\n")
   }
@@ -293,7 +501,11 @@ show_query <- function(x) {
       switch(op$op,
         "where" = cat("  WHERE", op$expr, "\n"),
         "select" = cat("  SELECT", paste(op$cols, collapse = ", "), "\n"),
-        "limit" = cat("  LIMIT", op$n, "\n")
+        "limit" = cat("  LIMIT", op$n, "\n"),
+        "offset" = cat("  OFFSET", op$n, "\n"),
+        "postfilter" = cat("  POSTFILTER\n"),
+        "fast_search" = cat("  FAST_SEARCH\n"),
+        "with_row_id" = cat("  WITH_ROW_ID\n")
       )
     }
   }

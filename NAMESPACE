@@ -6,8 +6,15 @@ export(lancedb_open_table)
 export(lancedb_create_table)
 export(lancedb_search)
 export(lancedb_fts_search)
+export(lancedb_hybrid_search)
 export(lancedb_scan)
 export(show_query)
+
+# Query modifiers
+export(lancedb_offset)
+export(lancedb_postfilter)
+export(lancedb_fast_search)
+export(lancedb_with_row_id)
 
 # Connection operations
 export(lancedb_list_tables)
