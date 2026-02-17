@@ -359,6 +359,73 @@ lancedb_with_row_id <- function(.data) {
   append_op(.data, list(op = "with_row_id"))
 }
 
+#' Select Computed Columns via SQL Expressions
+#'
+#' Adds a dynamic column projection to the lazy query using SQL expressions
+#' evaluated by the DataFusion engine. Unlike [dplyr::select()], which only
+#' picks existing columns by name, `lancedb_select_exprs()` can compute new
+#' derived columns using SQL expressions.
+#'
+#' @param .data A `lancedb_lazy` object.
+#' @param ... Named character strings. Each name becomes an output column name;
+#'   each value is a SQL expression evaluated against the table data.
+#'
+#' @return A new `lancedb_lazy` object with the dynamic projection appended.
+#'
+#' @examples
+#' \dontrun{
+#' library(dplyr)
+#'
+#' con <- lancedb_connect("/tmp/my_lancedb")
+#' tbl <- lancedb_open_table(con, "my_table")
+#'
+#' # Compute derived columns
+#' results <- lancedb_scan(tbl) %>%
+#'   lancedb_select_exprs(
+#'     score_pct  = "score * 100",
+#'     name_upper = "upper(name)",
+#'     id_str     = "CAST(id AS VARCHAR)"
+#'   ) %>%
+#'   slice_head(n = 10) %>%
+#'   collect()
+#'
+#' # After vector search, normalise the distance column
+#' results <- lancedb_search(tbl, runif(128)) %>%
+#'   lancedb_select_exprs(
+#'     name      = "name",
+#'     norm_dist = "_distance / 100"
+#'   ) %>%
+#'   slice_head(n = 5) %>%
+#'   collect()
+#' }
+#'
+#' @seealso [dplyr::select()], [lancedb_scan()], [lancedb_search()]
+#' @export
+lancedb_select_exprs <- function(.data, ...) {
+  stopifnot(inherits(.data, "lancedb_lazy"))
+
+  exprs <- list(...)
+
+  if (length(exprs) == 0) {
+    rlang::abort("lancedb_select_exprs() requires at least one named SQL expression.")
+  }
+
+  nms <- names(exprs)
+  if (is.null(nms) || any(nms == "")) {
+    rlang::abort(paste0(
+      "All arguments to lancedb_select_exprs() must be named. ",
+      "Use lancedb_select_exprs(col_name = 'sql_expr', ...)."
+    ))
+  }
+
+  not_str <- !vapply(exprs, is.character, logical(1))
+  if (any(not_str)) {
+    rlang::abort("All SQL expression values in lancedb_select_exprs() must be character strings.")
+  }
+
+  append_op(.data, list(op = "select_expr", exprs = exprs))
+}
+
 #' Create a new lancedb_lazy object (internal constructor)
 #' @noRd
 new_lancedb_lazy <- function(table, mode, qvec, ops, search_config = list()) {
@@ -421,6 +488,10 @@ print.lancedb_lazy <- function(x, ...) {
       desc <- switch(op$op,
         "where" = paste0("filter: ", op$expr),
         "select" = paste0("select: ", paste(op$cols, collapse = ", ")),
+        "select_expr" = paste0(
+          "select_exprs: ",
+          paste(names(op$exprs), "=", unlist(op$exprs), collapse = ", ")
+        ),
         "limit" = paste0("limit: ", op$n),
         "offset" = paste0("offset: ", op$n),
         "postfilter" = "postfilter",
@@ -501,6 +572,12 @@ show_query <- function(x) {
       switch(op$op,
         "where" = cat("  WHERE", op$expr, "\n"),
         "select" = cat("  SELECT", paste(op$cols, collapse = ", "), "\n"),
+        "select_expr" = {
+          cat("  SELECT (computed):\n")
+          for (nm in names(op$exprs)) {
+            cat("    ", nm, " = ", op$exprs[[nm]], "\n", sep = "")
+          }
+        },
         "limit" = cat("  LIMIT", op$n, "\n"),
         "offset" = cat("  OFFSET", op$n, "\n"),
         "postfilter" = cat("  POSTFILTER\n"),

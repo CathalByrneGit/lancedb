@@ -140,6 +140,7 @@ results <- lancedb_search(tbl, query_vec) %>%
 | `lancedb_postfilter(.data)` | Apply filters after search (ensures full index usage) |
 | `lancedb_fast_search(.data)` | Enable approximate faster search |
 | `lancedb_with_row_id(.data)` | Include internal `_rowid` column in results |
+| `lancedb_select_exprs(.data, ...)` | Project computed columns using SQL expressions (DataFusion) |
 
 ### dplyr Verbs (on `lancedb_lazy` objects)
 
@@ -312,6 +313,42 @@ results <- lancedb_search(tbl, query_vec) %>%
 results <- lancedb_scan(tbl) %>%
   lancedb_with_row_id() %>%
   slice_head(n = 10) %>%
+  collect()
+```
+
+### Computed Column Projections (SQL Expressions)
+
+Unlike `select()` which picks existing columns by name, `lancedb_select_exprs()`
+projects new columns computed by SQL expressions evaluated by DataFusion.
+
+```r
+# Compute derived columns from a scan
+results <- lancedb_scan(tbl) %>%
+  lancedb_select_exprs(
+    score_pct  = "score * 100",
+    name_upper = "upper(name)",
+    id_str     = "CAST(id AS VARCHAR)"
+  ) %>%
+  slice_head(n = 10) %>%
+  collect()
+
+# Normalise the _distance column after a vector search
+results <- lancedb_search(tbl, query_vec) %>%
+  lancedb_select_exprs(
+    name      = "name",
+    category  = "category",
+    norm_dist = "_distance / 100"
+  ) %>%
+  slice_head(n = 5) %>%
+  collect()
+
+# Conditional band classification
+results <- lancedb_scan(tbl) %>%
+  filter(score > 0) %>%
+  lancedb_select_exprs(
+    name  = "name",
+    band  = "CASE WHEN score > 0.8 THEN 'high' WHEN score > 0.5 THEN 'mid' ELSE 'low' END"
+  ) %>%
   collect()
 ```
 

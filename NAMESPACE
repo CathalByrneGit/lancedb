@@ -15,6 +15,7 @@ export(lancedb_offset)
 export(lancedb_postfilter)
 export(lancedb_fast_search)
 export(lancedb_with_row_id)
+export(lancedb_select_exprs)
 
 # Connection operations
 export(lancedb_list_tables)

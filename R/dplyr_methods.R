@@ -293,6 +293,17 @@ ops_to_json <- function(ops) {
       "postfilter" = '{"op":"postfilter"}',
       "fast_search" = '{"op":"fast_search"}',
       "with_row_id" = '{"op":"with_row_id"}',
+      "select_expr" = {
+        # Serialize as {"op":"select_expr","exprs":{"col":"expr",...}}
+        pairs <- op$exprs
+        kv <- paste0(
+          '"', names(pairs), '":"',
+          gsub('"', '\\\\"', unlist(pairs, use.names = FALSE)),
+          '"',
+          collapse = ","
+        )
+        sprintf('{"op":"select_expr","exprs":{%s}}', kv)
+      },
       sprintf('{"op":"%s"}', op$op)
     )
   }, character(1))

@@ -587,7 +587,8 @@ fn rust_cleanup_old_versions(table: &LanceTable, older_than_days: i64) {
 // ---------------------------------------------------------------------------
 
 /// Apply common QueryBase operations to any query builder.
-/// Handles: where, select, limit, offset, postfilter, fast_search, with_row_id.
+/// Handles: where, select (columns), select_expr (SQL computed columns),
+///           limit, offset, postfilter, fast_search, with_row_id.
 fn apply_common_ops<Q: QueryBase>(mut builder: Q, ops: &[serde_json::Value]) -> Q {
     for op in ops {
         let op_type = op["op"].as_str().unwrap();
@@ -606,6 +607,19 @@ fn apply_common_ops<Q: QueryBase>(mut builder: Q, ops: &[serde_json::Value]) -> 
                 builder = builder.select(Select::columns(
                     &cols.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
                 ));
+            }
+            "select_expr" => {
+                // Dynamic projection: named SQL expressions
+                // op["exprs"] is a JSON object {"out_col": "sql_expr", ...}
+                let pairs: Vec<(String, String)> = op["exprs"]
+                    .as_object()
+                    .expect("select_expr op requires an 'exprs' object")
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.as_str().unwrap().to_string()))
+                    .collect();
+                let refs: Vec<(&str, &str)> =
+                    pairs.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+                builder = builder.select(Select::dynamic(&refs));
             }
             "limit" => {
                 let n = op["n"].as_u64().unwrap() as usize;
@@ -627,7 +641,8 @@ fn apply_common_ops<Q: QueryBase>(mut builder: Q, ops: &[serde_json::Value]) -> 
             other => {
                 panic!(
                     "Unsupported operation '{}'. \
-                     Supported ops: where, select, limit, offset, postfilter, fast_search, with_row_id.",
+                     Supported ops: where, select, select_expr, limit, offset, \
+                     postfilter, fast_search, with_row_id.",
                     other
                 );
             }
@@ -637,6 +652,7 @@ fn apply_common_ops<Q: QueryBase>(mut builder: Q, ops: &[serde_json::Value]) -> 
 }
 
 /// Build a FullTextSearchQuery from the search config.
+/// Supports: fts_query, fts_columns.
 fn build_fts_query(search_cfg: &serde_json::Value) -> Option<FullTextSearchQuery> {
     search_cfg
         .get("fts_query")
