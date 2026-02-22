@@ -9,7 +9,8 @@ $(SHLIB): $(STATLIB)
 
 $(STATLIB):
 	mkdir -p $(LIBDIR)/libgcc_mock
-	cd rust && cargo build --release --lib --target=$(TARGET)
+	export PATH="$(HOME)/.cargo/bin:$$PATH" && \
+	  cd rust && cargo build --release --lib --target=$(TARGET)
 
 C_clean:
 	rm -Rf $(SHLIB) $(STATLIB) $(OBJECTS)

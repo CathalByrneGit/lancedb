@@ -2,19 +2,18 @@ LIBDIR = rust/target/release
 STATLIB = $(LIBDIR)/liblancedb_r.a
 PKG_LIBS = -L$(LIBDIR) -llancedb_r -lpthread -ldl -lm
 
-# Cargo location: honours $CARGO_HOME if set, otherwise defaults to ~/.cargo.
-# R resets PATH when spawning the build subprocess, so we cannot rely on
-# cargo being on PATH; instead we resolve the absolute path at make-expansion
-# time using the HOME environment variable, which R does preserve.
-CARGO_HOME ?= $(HOME)/.cargo
-CARGO = $(CARGO_HOME)/bin/cargo
+# R can strip or reset PATH when spawning build subprocesses, so bare `cargo`
+# may not be found.  We fix this by prepending the standard rustup binary
+# directory to PATH in the recipe itself.  This works whether cargo is already
+# on PATH or only installed under ~/.cargo/bin (the rustup default).
 
 all: C_clean
 
 $(SHLIB): $(STATLIB)
 
 $(STATLIB):
-	cd rust && "$(CARGO)" build --release --lib
+	export PATH="$(HOME)/.cargo/bin:$$PATH" && \
+	  cd rust && cargo build --release --lib
 
 C_clean:
 	rm -Rf $(SHLIB) $(STATLIB) $(OBJECTS)
