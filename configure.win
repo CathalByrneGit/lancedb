@@ -1,0 +1,26 @@
+#!/bin/sh
+# Pre-flight check for Windows (Rtools MSYS2 shell)
+
+CARGO="${CARGO:-${HOME}/.cargo/bin/cargo}"
+if ! command -v "$CARGO" >/dev/null 2>&1; then
+  CARGO="$(command -v cargo 2>/dev/null || true)"
+fi
+
+if [ -z "$CARGO" ] || ! command -v "$CARGO" >/dev/null 2>&1; then
+  echo ""
+  echo "-------------------------------------------------------------------"
+  echo "ERROR: Rust toolchain not found."
+  echo ""
+  echo "This package requires 'cargo' (the Rust build tool) to compile its"
+  echo "native code.  Install Rust via rustup:"
+  echo ""
+  echo "    https://rustup.rs/"
+  echo ""
+  echo "Then restart your terminal and retry."
+  echo "-------------------------------------------------------------------"
+  echo ""
+  exit 1
+fi
+
+echo "* Found cargo at: $CARGO"
+"$CARGO" --version
