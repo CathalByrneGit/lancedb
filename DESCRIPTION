@@ -16,7 +16,9 @@ BugReports: https://github.com/lancedb/lancedb/issues
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
-SystemRequirements: Cargo (Rust's package manager), rustc (>= 1.70)
+SystemRequirements: Cargo (Rust's package manager), rustc (>= 1.70),
+    protoc (Protocol Buffers compiler; Debian/Ubuntu: protobuf-compiler,
+    macOS: brew install protobuf, Windows: choco install protoc)
 Imports:
     rlang (>= 1.0.0),
     dplyr (>= 1.1.0),

@@ -1,26 +1,47 @@
 #!/bin/sh
 # Pre-flight check for Windows (Rtools MSYS2 shell)
 
+MISSING=0
+
+# ── 1. Rust / cargo ──────────────────────────────────────────────────────────
 CARGO="${CARGO:-${HOME}/.cargo/bin/cargo}"
-if ! command -v "$CARGO" >/dev/null 2>&1; then
+if ! "$CARGO" --version >/dev/null 2>&1; then
   CARGO="$(command -v cargo 2>/dev/null || true)"
 fi
 
-if [ -z "$CARGO" ] || ! command -v "$CARGO" >/dev/null 2>&1; then
+if [ -z "$CARGO" ] || ! "$CARGO" --version >/dev/null 2>&1; then
   echo ""
   echo "-------------------------------------------------------------------"
   echo "ERROR: Rust toolchain not found."
   echo ""
-  echo "This package requires 'cargo' (the Rust build tool) to compile its"
-  echo "native code.  Install Rust via rustup:"
-  echo ""
-  echo "    https://rustup.rs/"
-  echo ""
+  echo "This package requires 'cargo' to compile its native code."
+  echo "Install Rust from: https://rustup.rs/"
   echo "Then restart your terminal and retry."
   echo "-------------------------------------------------------------------"
   echo ""
-  exit 1
+  MISSING=1
+else
+  echo "* Found cargo: $("$CARGO" --version)"
 fi
 
-echo "* Found cargo at: $CARGO"
-"$CARGO" --version
+# ── 2. protoc (Protocol Buffers compiler) ────────────────────────────────────
+PROTOC="${PROTOC:-$(command -v protoc 2>/dev/null || true)}"
+
+if [ -z "$PROTOC" ] || ! "$PROTOC" --version >/dev/null 2>&1; then
+  echo ""
+  echo "-------------------------------------------------------------------"
+  echo "ERROR: protoc (Protocol Buffers compiler) not found."
+  echo ""
+  echo "LanceDB's Rust crate requires 'protoc' to build."
+  echo "Install it via: choco install protoc"
+  echo "Or download from: https://github.com/protocolbuffers/protobuf/releases"
+  echo "-------------------------------------------------------------------"
+  echo ""
+  MISSING=1
+else
+  echo "* Found protoc: $("$PROTOC" --version)"
+fi
+
+if [ "$MISSING" -ne 0 ]; then
+  exit 1
+fi

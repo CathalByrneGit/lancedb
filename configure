@@ -1,29 +1,58 @@
 #!/bin/sh
-# Pre-flight check: ensure the Rust toolchain is available before attempting
-# to compile the package.  This produces a much friendlier error message than
-# the cryptic "cargo: command not found" from make.
+# Pre-flight check: ensure all required build tools are available before
+# attempting to compile the package.  Produces friendly error messages
+# instead of cryptic make/cargo failures.
 
-# Try the standard rustup install location first, then PATH
+MISSING=0
+
+# ── 1. Rust / cargo ──────────────────────────────────────────────────────────
 CARGO="${CARGO:-${HOME}/.cargo/bin/cargo}"
-if ! command -v "$CARGO" >/dev/null 2>&1; then
+if ! "$CARGO" --version >/dev/null 2>&1; then
   CARGO="$(command -v cargo 2>/dev/null || true)"
 fi
 
-if [ -z "$CARGO" ] || ! command -v "$CARGO" >/dev/null 2>&1; then
+if [ -z "$CARGO" ] || ! "$CARGO" --version >/dev/null 2>&1; then
   echo ""
   echo "-------------------------------------------------------------------"
   echo "ERROR: Rust toolchain not found."
   echo ""
-  echo "This package requires 'cargo' (the Rust build tool) to compile its"
-  echo "native code.  Install Rust via rustup:"
+  echo "This package requires 'cargo' to compile its native code."
+  echo "Install Rust via rustup:"
   echo ""
   echo "    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
   echo ""
   echo "Then restart your terminal (or run: source ~/.cargo/env) and retry."
   echo "-------------------------------------------------------------------"
   echo ""
-  exit 1
+  MISSING=1
+else
+  echo "* Found cargo: $("$CARGO" --version)"
 fi
 
-echo "* Found cargo at: $CARGO"
-"$CARGO" --version
+# ── 2. protoc (Protocol Buffers compiler) ────────────────────────────────────
+PROTOC="${PROTOC:-$(command -v protoc 2>/dev/null || true)}"
+
+if [ -z "$PROTOC" ] || ! "$PROTOC" --version >/dev/null 2>&1; then
+  echo ""
+  echo "-------------------------------------------------------------------"
+  echo "ERROR: protoc (Protocol Buffers compiler) not found."
+  echo ""
+  echo "LanceDB's Rust crate requires 'protoc' to build its protocol buffer"
+  echo "definitions.  Install it with your system package manager:"
+  echo ""
+  echo "  Debian/Ubuntu:  sudo apt-get install -y protobuf-compiler"
+  echo "  Fedora/RHEL:    sudo dnf install -y protobuf-compiler"
+  echo "  macOS:          brew install protobuf"
+  echo "  Windows:        choco install protoc"
+  echo ""
+  echo "-------------------------------------------------------------------"
+  echo ""
+  MISSING=1
+else
+  echo "* Found protoc: $("$PROTOC" --version)"
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+if [ "$MISSING" -ne 0 ]; then
+  exit 1
+fi

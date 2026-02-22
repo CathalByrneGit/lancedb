@@ -475,7 +475,11 @@ arrow_tbl <- lancedb_scan(tbl) %>% collect(as = "arrow")
 ## Requirements
 
 - R >= 4.0
-- Rust >= 1.70 (for building from source)
+- Rust >= 1.70 — install via [rustup.rs](https://rustup.rs/)
+- `protoc` (Protocol Buffers compiler) — required by LanceDB's Rust crate:
+  - Debian/Ubuntu: `sudo apt-get install -y protobuf-compiler`
+  - macOS: `brew install protobuf`
+  - Windows: `choco install protoc`
 - System dependencies: same as the `arrow` R package
 
 ## License
